@@ -24,7 +24,7 @@ flowchart LR
 
 ## Permission model
 
-Mailboxes are virtual accounts, not Linux login users. The `vmail` system user owns message files. `morrow` runs the web application and submission guard without sudo, shell access, or access to `/var/vmail`. It talks to Dovecot as the logged-in mailbox account.
+Mailboxes are virtual accounts, not Linux login users. The `vmail` system user owns message files. `kagnode` runs the web application and submission guard without sudo, shell access, or access to `/var/vmail`. It talks to Dovecot as the logged-in mailbox account.
 
 An administrator can create/disable accounts, change quotas and passwords, add domains and receiving aliases, and grant sending identities. Administrators have no mailbox-reading endpoint for other users. However, administrators can reset passwords and the server's root administrator can read on-disk mail. This is server-hosted email, not end-to-end encrypted mail.
 
@@ -36,11 +36,13 @@ The guard enforces 60 submitted messages per account per rolling window of one h
 
 ## Data and sessions
 
-`/var/lib/morrow/directory.sqlite3` holds domain names, account password hashes, roles, quotas, aliases, grants, sessions, counters, and the bounded audit log. The database uses rollback journals and a ten-second busy timeout; read access is shared only with required service accounts. The `sender_owners` SQL view keeps backend and web permissions aligned.
+`/var/lib/kagnode/directory.sqlite3` holds domain names, account password hashes, roles, quotas, aliases, grants, sessions, counters, and the bounded audit log. The database uses rollback journals and a ten-second busy timeout; read access is shared only with required service accounts. The `sender_owners` SQL view keeps backend and web permissions aligned.
 
 Passwords use Dovecot-compatible SHA512-CRYPT with 100,000 rounds. Python 3.12's `crypt` is used deliberately for compatibility with Ubuntu 24.04. **Python 3.13+ and Dovecot 2.4 are not supported** by this configuration or release.
 
-The session cookie contains only a random token. Its SHA-256 digest is stored in SQLite. The mail password is retained **encrypted server-side** with Fernet for authenticated IMAP/SMTP operations, never put in browser storage or cookies. The encryption key and Flask signing key are generated per installation in root-owned `/etc/morrow/config.json`. Active credentials expire after eight hours. Logout removes the server session; password changes and admin account edits revoke web sessions. The cookie is Secure, HttpOnly, SameSite=Strict on production HTTPS. Every state-changing HTTP request, including login, requires a CSRF token. nginx overwrites forwarded headers before proxying.
+The session cookie contains only a random token. Its SHA-256 digest is stored in SQLite. The mail password is retained **encrypted server-side** with Fernet for authenticated IMAP/SMTP operations, never put in browser storage or cookies. The encryption key and Flask signing key are generated per installation in root-owned `/etc/kagnode/config.json`. Active credentials expire after eight hours. Logout removes the server session; password changes and admin account edits revoke web sessions. Production cookies use the `__Host-` prefix, Secure, HttpOnly, SameSite=Strict, and Path=/ with no Domain attribute. At most five active sessions are retained per account. Every state-changing HTTP request, including login, requires a CSRF token; supplied Origin and Fetch Metadata headers must also describe a same-origin request. nginx enforces the configured hostname and overwrites forwarded headers before proxying.
+
+Administrative mutations require password confirmation within 15 minutes. Reauthentication rotates the bearer token and refreshes the encrypted credential timestamp but preserves the absolute eight-hour session expiry and the existing random CSRF synchronizer token. The browser retries the blocked operation only after successful confirmation; cancel or a wrong password never executes it. No schema migration or additional daemon is required.
 
 A daily timer deletes expired sessions and rate counters. Audit retention is capped at approximately 10,000 events. It records login, sender address on send, and account/permission changes, not message bodies, passwords, or full recipient lists.
 
@@ -48,7 +50,7 @@ A daily timer deletes expired sessions and rate counters. Audit retention is cap
 
 Dovecot stores Maildir messages at `/var/vmail/DOMAIN/LOCALPART/Maildir`, with a default 1 GiB quota per account. Mailbox queries use stable IMAP UIDs. Page lists fetch headers in batches of 30. Moving mail uses IMAP MOVE; deleting from Trash uses UID EXPUNGE, never a broad expunge that could affect other clients' marked messages.
 
-Messages have a 25 MiB transport limit; total outgoing attachments are capped at 16 MiB to allow MIME overhead. Downloaded attachments use `application/octet-stream`, attachment disposition, and `nosniff`. Incoming HTML is never executed: the web UI displays plain text or extracts text from HTML-only messages. Original `.eml` downloads preserve MIME for use in a full mail client.
+Messages have a 25 MiB transport limit; outgoing attachments are capped at 20 files and 16 MiB total to allow MIME overhead. The web parser rejects incoming messages with more than 200 MIME objects or root headers above 64 KiB; they remain available through native IMAP. JSON admin/login requests are limited to 64 KiB, message JSON to 2 MiB, multipart message uploads to 24 MiB/40 fields, and text composition to 1 MiB. Downloaded attachments use `application/octet-stream`, attachment disposition, and `nosniff`. Incoming HTML is never executed: the web UI displays plain text or extracts text from HTML-only messages. Original `.eml` downloads preserve MIME for use in a full mail client.
 
 Mail is submitted first, then a Sent copy is appended. A failed Sent append returns an explicit “accepted; do not resend” warning. SMTP timeouts can leave acceptance uncertain; the UI asks the user to check before retrying. Sending is not exactly-once across network failures.
 

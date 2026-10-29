@@ -22,6 +22,41 @@ FOLDERS = {
     "junk": "Junk",
 }
 MAX_MESSAGE = 25 * 1024 * 1024
+MAX_ATTACHMENTS = 20
+MAX_MIME_PARTS = 200
+
+
+def safe_filename(value):
+    """Treat names from received mail as untrusted download metadata."""
+    name = str(value or "attachment").replace("\\", "/").split("/")[-1]
+    # Remove controls, bidi overrides and other invisible formatting characters.
+    import unicodedata
+
+    name = "".join(c for c in name if not unicodedata.category(c).startswith("C"))
+    return name[:200].strip(" .") or "attachment"
+
+
+def parse_message(raw):
+    """Bound object creation for hostile MIME trees before parsing the body."""
+    if len(raw) > MAX_MESSAGE:
+        raise ValueError("Message too large for webmail. Use an IMAP client.")
+    header_end = re.search(rb"\r?\n\r?\n", raw[:65540])
+    if (header_end.start() if header_end else len(raw)) > 65536:
+        raise ValueError("Message headers are too large for webmail.")
+    count = 0
+
+    def factory(*args, **kwargs):
+        nonlocal count
+        count += 1
+        if count > MAX_MIME_PARTS:
+            raise ValueError(
+                "Message has too many MIME parts for webmail. Use an IMAP client."
+            )
+        return EmailMessage(*args, **kwargs)
+
+    return email.message_from_bytes(
+        raw, policy=policy.default.clone(message_factory=factory)
+    )
 
 
 def recipients(value):
@@ -67,15 +102,16 @@ def build_message(data, user, allowed, attachments=(), draft=False):
     msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = make_msgid(domain=sender.split("@")[1])
     msg.set_content(body)
-    msg._morrow_bcc = bcc
+    msg._kagnode_bcc = bcc
     total = 0
-    for item in attachments:
+    for index, item in enumerate(attachments):
+        if index >= MAX_ATTACHMENTS:
+            raise ValueError("Attach at most 20 files per message.")
         content = item.read(16 * 1024 * 1024 + 1)
         total += len(content)
         if total > 16 * 1024 * 1024:
             raise ValueError("Attachments must total 16 MiB or less.")
-        filename = (item.filename or "attachment").replace("\\", "/").split("/")[-1]
-        filename = "".join(c for c in filename if ord(c) >= 32)[:200] or "attachment"
+        filename = safe_filename(item.filename)
         msg.add_attachment(
             content, maintype="application", subtype="octet-stream", filename=filename
         )
@@ -192,7 +228,7 @@ class Mail:
                     if not isinstance(row, tuple):
                         continue
                     meta, raw = row
-                    msg = email.message_from_bytes(raw, policy=policy.default)
+                    msg = parse_message(raw)
                     uid = re.search(rb"UID (\d+)", meta)[1].decode()
                     items.append(
                         dict(
@@ -228,7 +264,7 @@ class Mail:
             raise ValueError("Could not read message.")
         for row in rows:
             if isinstance(row, tuple):
-                return email.message_from_bytes(row[1], policy=policy.default)
+                return parse_message(row[1])
         raise ValueError("Message no longer exists.")
 
     def read(self, user, password, folder, uid):
@@ -243,7 +279,7 @@ class Mail:
                     or part.get_content_disposition() == "attachment"
                 ):
                     attachments.append(
-                        dict(id=i, name=part.get_filename() or "attachment")
+                        dict(id=i, name=safe_filename(part.get_filename()))
                     )
             return dict(
                 uid=str(uid),
@@ -280,7 +316,7 @@ class Mail:
                 raw = b"\r\n".join(child.as_bytes() for child in part.get_payload())
             elif raw is None and part.is_multipart():
                 raw = part.as_bytes()
-            return raw or b"", part.get_filename() or "attachment"
+            return raw or b"", safe_filename(part.get_filename())
 
     def action(self, user, password, folder, uid, action):
         if not re.fullmatch(r"[1-9][0-9]{0,9}", str(uid)):
@@ -335,8 +371,8 @@ class Mail:
             s.login(user["email"], password)
             refused = s.send_message(msg, from_addr=sender, to_addrs=recipients)
         warning = None
-        if getattr(msg, "_morrow_bcc", None):
-            msg["Bcc"] = ", ".join(msg._morrow_bcc)
+        if getattr(msg, "_kagnode_bcc", None):
+            msg["Bcc"] = ", ".join(msg._kagnode_bcc)
         try:
             with self.imap(user, password) as c:
                 c.create("Sent")

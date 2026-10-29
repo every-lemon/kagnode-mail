@@ -10,7 +10,7 @@ from email.parser import Parser
 
 def allowed_sender(path, login, envelope, headers):
     # One From mailbox only; reject malformed or duplicate headers and Sender spoofing.
-    if len(headers) != 1:
+    if len(headers) != 1 or len(headers[0].encode("utf-8")) > 8192:
         return False
     msg = Parser(policy=policy.default).parsestr("From: " + headers[0] + "\n\n")
     field = msg["From"]
@@ -32,12 +32,12 @@ def allowed_sender(path, login, envelope, headers):
 def run():
     import Milter
 
-    path = os.environ.get("MORROW_DATABASE", "/var/lib/morrow/directory.sqlite3")
+    path = os.environ.get("KAGNODE_DATABASE", "/var/lib/kagnode/directory.sqlite3")
 
     class SenderGuard(Milter.Base):
         def envfrom(self, sender, *args):
             self.envelope = sender.strip("<>").lower()
-            self.login = self.getsymval("{auth_authen}") or ""
+            self.login = (self.getsymval("{auth_authen}") or "").lower()
             self.headers = []
             self.bad_sender = False
             if not self.login:
@@ -47,6 +47,11 @@ def run():
 
         def header(self, name, value):
             if name.lower() == "from":
+                if self.headers or len(value.encode("utf-8")) > 8192:
+                    self.setreply(
+                        "550", "5.7.1", "Exactly one bounded From header is required"
+                    )
+                    return Milter.REJECT
                 self.headers.append(value)
             if name.lower() in ("sender", "resent-from", "resent-sender"):
                 self.bad_sender = True
@@ -70,6 +75,12 @@ def run():
 
         def eom(self):
             try:
+                # A slow DATA upload must not retain a grant revoked after EOH.
+                if not allowed_sender(path, self.login, self.envelope, self.headers):
+                    self.setreply(
+                        "550", "5.7.1", "Sender permission is no longer active"
+                    )
+                    return Milter.REJECT
                 # Native SMTP clients share a per-account hourly cap; no IP-only bypass.
                 with closing(sqlite3.connect(path, timeout=5)) as conn, conn:
                     conn.execute(
@@ -88,13 +99,13 @@ def run():
                         "451", "4.7.1", "Hourly account sending limit reached"
                     )
                     return Milter.TEMPFAIL
-            except sqlite3.Error:
+            except (sqlite3.Error, ValueError, AttributeError):
                 self.setreply("451", "4.7.1", "Rate limit service unavailable")
                 return Milter.TEMPFAIL
             return Milter.CONTINUE
 
     Milter.factory = SenderGuard
-    Milter.runmilter("morrow-sender-guard", "inet:8892@127.0.0.1", 30)
+    Milter.runmilter("kagnode-sender-guard", "inet:8892@127.0.0.1", 30)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import argparse
 import getpass
 import json
 import os
+import pwd
 import secrets
 import stat
 import time
@@ -16,29 +17,44 @@ from . import db
 
 def private_password(path):
     # Do not follow symlinks or consume a world-readable secret.
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd) as f:
         info = os.fstat(f.fileno())
         if (
             not stat.S_ISREG(info.st_mode)
-            or info.st_mode & 0o077
+            or stat.S_IMODE(info.st_mode) not in (0o400, 0o600)
             or info.st_uid != os.geteuid()
+            or info.st_nlink != 1
         ):
             raise ValueError(
-                "Password file must be a regular file owned by the current user with mode 0600 or 0400."
+                "Password file must be a single-link regular file owned by the current user with mode 0600 or 0400."
             )
         value = f.read(1024).rstrip("\r\n")
     db.password_hash(value)
     return value
 
 
+def drop_database_privileges():
+    """Never open service-owned SQLite files or journals with root privileges."""
+    if os.geteuid() == 0:
+        try:
+            account = pwd.getpwnam("kagnode")
+        except KeyError:
+            raise ValueError(
+                "The kagnode service account is missing. Run the installer first."
+            )
+        os.initgroups(account.pw_name, account.pw_gid)
+        os.setgid(account.pw_gid)
+        os.setuid(account.pw_uid)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("action", choices=["bootstrap", "reset-password", "cleanup"])
     p.add_argument(
-        "--config", default=os.environ.get("MORROW_CONFIG", "/etc/morrow/config.json")
+        "--config", default=os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/config.json")
     )
-    p.add_argument("--database", default="/var/lib/morrow/directory.sqlite3")
+    p.add_argument("--database", default="/var/lib/kagnode/directory.sqlite3")
     p.add_argument("--domain")
     p.add_argument("--hostname")
     p.add_argument("--ipv4", default="")
@@ -79,6 +95,10 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(cfg, indent=2) + "\n")
             path.chmod(0o640)
+        # Consume the protected file before losing root; all directory/database
+        # access below happens with the same privileges as the mail application.
+        hashed = db.password_hash(private_password(a.password_file))
+        drop_database_privileges()
         db.init(a.database)
         with db.connect(a.database) as conn:
             conn.execute(
@@ -92,7 +112,7 @@ def main():
                     (
                         db.address(a.admin),
                         "Administrator",
-                        db.password_hash(private_password(a.password_file)),
+                        hashed,
                     ),
                 )
             for local in ("postmaster", "abuse"):
@@ -110,6 +130,19 @@ def main():
         print("Application directory ready. Existing accounts and secrets preserved.")
     else:
         cfg = json.loads(Path(a.config).read_text())
+        if a.action == "reset-password":
+            email = db.address(a.admin or input("Email: "))
+            password = (
+                private_password(a.password_file)
+                if a.password_file
+                else getpass.getpass("New password: ")
+            )
+            if not a.password_file and password != getpass.getpass(
+                "Confirm new password: "
+            ):
+                raise ValueError("Passwords do not match.")
+            hashed = db.password_hash(password)
+        drop_database_privileges()
         with db.connect(cfg["DATABASE"]) as conn:
             if a.action == "cleanup":
                 conn.execute(
@@ -119,29 +152,19 @@ def main():
                     "DELETE FROM throttle WHERE until < ?", (int(time.time()),)
                 )
             else:
-                email = db.address(a.admin or input("Email: "))
                 u = conn.execute(
                     "SELECT id FROM users WHERE email=?", (email,)
                 ).fetchone()
                 if not u:
                     raise ValueError("Account does not exist.")
-                password = (
-                    private_password(a.password_file)
-                    if a.password_file
-                    else getpass.getpass("New password: ")
-                )
-                if not a.password_file and password != getpass.getpass(
-                    "Confirm new password: "
-                ):
-                    raise ValueError("Passwords do not match.")
                 conn.execute(
                     "UPDATE users SET password=? WHERE id=?",
-                    (db.password_hash(password), u[0]),
+                    (hashed, u[0]),
                 )
                 conn.execute("DELETE FROM sessions WHERE user_id=?", (u[0],))
                 db.audit(conn, "local administrator", "password.reset", email)
                 print(
-                    "Password reset. Web sessions revoked. Run doveadm kick for any existing IMAP sessions."
+                    "Password reset. Web sessions revoked. Disconnect existing native IMAP and SMTP sessions if immediate revocation is required."
                 )
 
 

@@ -1,16 +1,17 @@
 {
   "date": "2026-10-29",
-  "release": "0.1.0",
+  "release": "0.2.0",
   "environment": "Isolated Ubuntu 24.04 amd64 root filesystem with private network/PID namespaces; actual native daemons; 8 GiB host",
   "application_tests": {
-    "passed": 40,
-    "runtime": "Ubuntu Python 3.12 and distribution Flask/cryptography packages"
+    "passed": 69,
+    "runtime": "Ubuntu Python 3.12 and distribution Flask/cryptography packages; disposable test databases on private tmpfs",
+    "duration_seconds": 4.23
   },
-  "browser_checks": "Passed desktop/mobile, admin/member access, read-only preview, and non-JSON proxy error handling",
-  "mail_integration": "Passed actual SMTP, STARTTLS, sender restrictions, DKIM verification, LMTP, IMAPS, web send, Sent, drafts, attachment downloads, archive/trash, account disabling and loopback bindings",
+  "browser_checks": "Passed concise branded login/mail/admin/overview/account/DNS views, mobile layouts, system/light/dark themes, regular-member restrictions, read-only preview, proxy errors, and administrator confirmation cancel/failure/success",
+  "mail_integration": "Passed actual SMTP, STARTTLS, sender restrictions including revocation during DATA, DKIM verification, LMTP, IMAPS, web send/Sent/drafts/attachments/archive/trash, account disabling, loopback bindings, canonical HTTP hostname, uncompressed session responses, secure cookies and reauthentication/bearer rotation",
   "idle_sample": {
-    "after_idle_minutes": 5,
-    "core_pss_mib": 78.3,
+    "after_idle_minutes": 2,
+    "core_pss_mib": 81.1,
     "sample_seconds": 30.0,
     "cpu_percent_one_core": 0.0,
     "excludes": [
@@ -23,7 +24,7 @@
   },
   "package_install_estimate": {
     "additional_megabytes": 180,
-    "scope": "APT estimate on a minimal Ubuntu rootfs, including test tools; excludes base OS, mail storage, backups and download caches."
+    "scope": "Baseline APT estimate for the unchanged package set on a minimal Ubuntu rootfs, including test tools; excludes base OS, mail storage, backups and download caches."
   },
   "packages": {
     "postfix": "3.8.6-1ubuntu0.1",
@@ -42,5 +43,6 @@
     "Backup restoration on a different host",
     "Load/concurrency capacity",
     "Independent security audit"
-  ]
+  ],
+  "systemd_static_validation": "Unit syntax passed on systemd 255 with generators and dependency recursion disabled; runtime lifecycle unqualified"
 }

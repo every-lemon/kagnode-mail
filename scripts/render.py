@@ -34,11 +34,11 @@ def render(a):
     validate(a.domain, a.hostname, a.ipv4, a.ipv6, a.admin)
     root = Path(a.output)
     cert = "/etc/letsencrypt/live/" + a.hostname
-    database = "/var/lib/morrow/directory.sqlite3"
+    database = "/var/lib/kagnode/directory.sqlite3"
     files = {}
     files[
         "etc/postfix/main.cf"
-    ] = f"""# Managed by Morrow Mail. Ubuntu 24.04 / Postfix 3.8.
+    ] = f"""# Managed by KagNode Mail. Ubuntu 24.04 / Postfix 3.8.
 compatibility_level = 3.6
 myhostname = {a.hostname}
 mydomain = {a.domain}
@@ -59,11 +59,11 @@ mailbox_size_limit = 0
 message_size_limit = 26214400
 smtputf8_enable = no
 recipient_delimiter = +
-virtual_mailbox_domains = sqlite:/etc/postfix/morrow-domains.cf
-virtual_mailbox_maps = sqlite:/etc/postfix/morrow-users.cf
-virtual_alias_maps = sqlite:/etc/postfix/morrow-aliases.cf
+virtual_mailbox_domains = sqlite:/etc/postfix/kagnode-domains.cf
+virtual_mailbox_maps = sqlite:/etc/postfix/kagnode-users.cf
+virtual_alias_maps = sqlite:/etc/postfix/kagnode-aliases.cf
 virtual_transport = lmtp:unix:private/dovecot-lmtp
-smtpd_sender_login_maps = sqlite:/etc/postfix/morrow-senders.cf
+smtpd_sender_login_maps = sqlite:/etc/postfix/kagnode-senders.cf
 smtpd_relay_restrictions = permit_sasl_authenticated, reject_unauth_destination
 smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unknown_recipient_domain, reject_unlisted_recipient
 smtpd_helo_required = yes
@@ -76,6 +76,9 @@ smtpd_tls_key_file = {cert}/privkey.pem
 smtpd_tls_security_level = may
 smtpd_tls_auth_only = yes
 smtpd_tls_mandatory_protocols = >=TLSv1.2
+smtpd_tls_protocols = >=TLSv1.2
+smtp_tls_protocols = >=TLSv1.2
+smtp_tls_mandatory_protocols = >=TLSv1.2
 smtp_tls_security_level = may
 smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
 smtp_tls_loglevel = 1
@@ -151,7 +154,7 @@ postlog   unix-dgram n  -       n       -       1       postlogd
         "senders": "SELECT owner FROM sender_owners WHERE email='%s'",
     }
     for key, query in queries.items():
-        files[f"etc/postfix/morrow-{key}.cf"] = (
+        files[f"etc/postfix/kagnode-{key}.cf"] = (
             f"dbpath = {database}\nquery = {query}\n"
         )
     files[
@@ -177,14 +180,14 @@ mail_privileged_group = vmail
 mail_plugins = quota
 passdb {{
  driver = sql
- args = /etc/dovecot/morrow-sql.conf.ext
+ args = /etc/dovecot/kagnode-sql.conf.ext
 }}
 userdb {{
  driver = sql
- args = /etc/dovecot/morrow-sql.conf.ext
+ args = /etc/dovecot/kagnode-sql.conf.ext
 }}
 service auth {{
- extra_groups = morrow-read
+ extra_groups = kagnode-read
  unix_listener /var/spool/postfix/private/auth {{
   mode = 0660
   user = postfix
@@ -192,7 +195,7 @@ service auth {{
  }}
 }}
 service auth-worker {{
- extra_groups = morrow-read
+ extra_groups = kagnode-read
  user = dovecot
 }}
 service imap-login {{
@@ -266,7 +269,7 @@ plugin {{
 mail_max_userip_connections = 10
 log_path = syslog
 """
-    files["etc/dovecot/morrow-sql.conf.ext"] = f"""driver = sqlite
+    files["etc/dovecot/kagnode-sql.conf.ext"] = f"""driver = sqlite
 connect = {database}
 default_pass_scheme = SHA512-CRYPT
 password_query = SELECT email AS user, password FROM users WHERE email='%u' AND active=1
@@ -302,8 +305,12 @@ http {
  tcp_nopush on;
  keepalive_timeout 30;
  server_tokens off;
- gzip on;
- gzip_types text/css application/javascript application/json;
+ # Authenticated responses contain secrets; do not compress them (BREACH).
+ gzip off;
+ client_header_timeout 15s;
+ client_body_timeout 30s;
+ send_timeout 30s;
+ reset_timedout_connection on;
  access_log /var/log/nginx/access.log;
  error_log /var/log/nginx/error.log;
  include /etc/nginx/conf.d/*.conf;
@@ -311,65 +318,89 @@ http {
 }
 """
     files[
-        "etc/nginx/sites-available/morrow"
+        "etc/nginx/sites-available/kagnode"
     ] = f"""# The mail host must be DNS-only, not behind an HTTP CDN proxy.
-limit_req_zone $binary_remote_addr zone=morrow_login:1m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=kagnode_login:1m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=kagnode_api:1m rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=kagnode_connections:1m;
 server {{
  listen 80;
  listen [::]:80;
  server_name {a.hostname};
- location ^~ /.well-known/acme-challenge/ {{ root /var/www/morrow-acme; }}
+ if ($host != {a.hostname}) {{ return 421; }}
+ location ^~ /.well-known/acme-challenge/ {{ root /var/www/kagnode-acme; }}
  location / {{ return 301 https://{a.hostname}$request_uri; }}
 }}
 server {{
  listen 443 ssl;
  listen [::]:443 ssl;
  server_name {a.hostname};
+ if ($host != {a.hostname}) {{ return 421; }}
  ssl_certificate {cert}/fullchain.pem;
  ssl_certificate_key {cert}/privkey.pem;
  ssl_protocols TLSv1.2 TLSv1.3;
- ssl_session_cache shared:MORROW:1m;
+ ssl_session_cache shared:KAGNODE:1m;
  ssl_session_tickets off;
+ ssl_ciphers ECDHE+AESGCM:ECDHE+CHACHA20;
+ ssl_prefer_server_ciphers off;
+ limit_conn kagnode_connections 12;
+ limit_conn_status 429;
  server_tokens off;
  client_max_body_size 24m;
  add_header Strict-Transport-Security "max-age=31536000" always;
- access_log /var/log/nginx/morrow-access.log;
- error_log /var/log/nginx/morrow-error.log;
+ access_log /var/log/nginx/kagnode-access.log;
+ error_log /var/log/nginx/kagnode-error.log;
  location /static/ {{
-  alias /opt/morrow/morrow/static/;
+  alias /opt/kagnode/kagnode/static/;
   expires 1h;
   add_header X-Content-Type-Options nosniff always;
+  add_header Strict-Transport-Security "max-age=31536000" always;
+  gzip on;
+  gzip_types text/css application/javascript image/svg+xml;
  }}
  location = /api/login {{
-  limit_req zone=morrow_login burst=5 nodelay;
+  limit_req zone=kagnode_login burst=5 nodelay;
   limit_req_status 429;
   proxy_pass http://127.0.0.1:8000;
-  include /etc/nginx/morrow-proxy.conf;
+  include /etc/nginx/kagnode-proxy.conf;
  }}
  location / {{
+  limit_req zone=kagnode_api burst=30 nodelay;
+  limit_req_status 429;
   proxy_pass http://127.0.0.1:8000;
-  include /etc/nginx/morrow-proxy.conf;
+  include /etc/nginx/kagnode-proxy.conf;
  }}
 }}
 """
-    files["etc/nginx/morrow-proxy.conf"] = """proxy_set_header Host $host;
+    files["etc/nginx/kagnode-proxy.conf"] = f"""proxy_set_header Host {a.hostname};
 proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $remote_addr;
 proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header Accept-Encoding "";
 proxy_connect_timeout 5s;
 proxy_read_timeout 90s;
 """
-    base_service = """User=morrow
-Group=morrow
-SupplementaryGroups=morrow-read
-WorkingDirectory=/opt/morrow
+    base_service = """User=kagnode
+Group=kagnode
+SupplementaryGroups=kagnode-read
+WorkingDirectory=/opt/kagnode
 Environment=PYTHONDONTWRITEBYTECODE=1
 UMask=0027
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectKernelLogs=true
+ProtectProc=invisible
+ProcSubset=pid
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictRealtime=true
+RestrictNamespaces=true
+RemoveIPC=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/morrow
+ReadWritePaths=/var/lib/kagnode
 RestrictSUIDSGID=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -379,17 +410,17 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 Restart=on-failure
 RestartSec=3
 """
-    files["etc/systemd/system/morrow-web.service"] = (
+    files["etc/systemd/system/kagnode-web.service"] = (
         """[Unit]
-Description=Morrow Mail web interface
+Description=KagNode Mail web interface
 After=network.target dovecot.service postfix.service
 
 [Service]
 """
         + base_service
-        + """Environment=MORROW_CONFIG=/etc/morrow/config.json
-ExecStart=/usr/bin/gunicorn --bind 127.0.0.1:8000 --workers 1 --threads 2 --timeout 90 --worker-tmp-dir /run/morrow-web --access-logfile - morrow.wsgi:app
-RuntimeDirectory=morrow-web
+        + """Environment=KAGNODE_CONFIG=/etc/kagnode/config.json
+ExecStart=/usr/bin/gunicorn --bind 127.0.0.1:8000 --workers 1 --threads 2 --timeout 90 --worker-tmp-dir /run/kagnode-web --access-logfile - kagnode.wsgi:app
+RuntimeDirectory=kagnode-web
 MemoryHigh=256M
 MemoryMax=384M
 TasksMax=32
@@ -398,16 +429,16 @@ TasksMax=32
 WantedBy=multi-user.target
 """
     )
-    files["etc/systemd/system/morrow-guard.service"] = (
+    files["etc/systemd/system/kagnode-guard.service"] = (
         """[Unit]
-Description=Morrow Mail sender permission guard
+Description=KagNode Mail sender permission guard
 After=network.target
 Before=postfix.service
 
 [Service]
 """
         + base_service
-        + """ExecStart=/usr/bin/python3 -m morrow.guard
+        + """ExecStart=/usr/bin/python3 -m kagnode.guard
 MemoryHigh=64M
 MemoryMax=128M
 TasksMax=32
@@ -416,14 +447,14 @@ TasksMax=32
 WantedBy=multi-user.target
 """
     )
-    files["etc/letsencrypt/renewal-hooks/deploy/morrow-reload"] = """#!/bin/sh
+    files["etc/letsencrypt/renewal-hooks/deploy/kagnode-reload"] = """#!/bin/sh
 set -eu
 /usr/sbin/nginx -t
 /usr/sbin/postfix check
 /usr/bin/doveconf -n >/dev/null
 systemctl reload nginx postfix dovecot
 """
-    files["etc/fail2ban/jail.d/morrow.conf"] = """[sshd]
+    files["etc/fail2ban/jail.d/kagnode.conf"] = """[sshd]
 enabled = true
 backend = systemd
 
@@ -443,19 +474,19 @@ maxretry = 5
 findtime = 10m
 bantime = 1h
 """
-    files["etc/systemd/system/morrow-maintenance.service"] = (
+    files["etc/systemd/system/kagnode-maintenance.service"] = (
         """[Unit]
-Description=Expire Morrow web sessions and throttles
+Description=Expire KagNode Mail web sessions and throttles
 
 [Service]
 """
         + base_service.replace("Restart=on-failure\nRestartSec=3\n", "")
         + """Type=oneshot
-ExecStart=/usr/bin/python3 -m morrow.cli cleanup
+ExecStart=/usr/bin/python3 -m kagnode.cli cleanup
 """
     )
-    files["etc/systemd/system/morrow-maintenance.timer"] = """[Unit]
-Description=Daily Morrow session cleanup
+    files["etc/systemd/system/kagnode-maintenance.timer"] = """[Unit]
+Description=Daily KagNode Mail session cleanup
 
 [Timer]
 OnCalendar=daily

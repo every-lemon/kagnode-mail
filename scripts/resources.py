@@ -23,9 +23,9 @@ def snapshot():
             )
             cwd = os.readlink(entry / "cwd")
             app = (
-                cwd == "/opt/morrow"
+                cwd == "/opt/kagnode"
                 and "python" in exe
-                and ("morrow" in cmd or "gunicorn" in cmd)
+                and ("kagnode" in cmd or "gunicorn" in cmd)
             )
             relevant = (
                 exe.startswith(("/usr/lib/postfix/", "/usr/lib/dovecot/"))

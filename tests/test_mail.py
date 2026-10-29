@@ -3,9 +3,9 @@ import io
 import pytest
 from werkzeug.datastructures import FileStorage
 
-from morrow import db
-from morrow.guard import allowed_sender
-from morrow.mail import Mail, build_message
+from kagnode import db
+from kagnode.guard import allowed_sender
+from kagnode.mail import Mail, build_message
 
 USER = {"id": 2, "email": "member@example.com"}
 
@@ -120,7 +120,7 @@ def test_sent_copy_failure_does_not_report_send_failure(monkeypatch):
         def send_message(self, *a, **kw):
             return {}
 
-    monkeypatch.setattr("morrow.mail.smtplib.SMTP", SMTP)
+    monkeypatch.setattr("kagnode.mail.smtplib.SMTP", SMTP)
     mail = Mail({"SMTP_HOST": "127.0.0.1", "SMTP_PORT": 1587})
 
     def fail(*a):
@@ -135,7 +135,7 @@ def test_sent_copy_failure_does_not_report_send_failure(monkeypatch):
 def test_html_only_mail_has_readable_text_without_active_content():
     from email.message import EmailMessage
 
-    from morrow.mail import message_text
+    from kagnode.mail import message_text
 
     msg = EmailMessage()
     msg.set_content(
@@ -194,7 +194,7 @@ def test_move_uses_post_login_capabilities(monkeypatch):
         def logout(self):
             pass
 
-    monkeypatch.setattr("morrow.mail.imaplib.IMAP4", IMAP)
+    monkeypatch.setattr("kagnode.mail.imaplib.IMAP4", IMAP)
     mail = Mail({"IMAP_HOST": "127.0.0.1", "IMAP_PORT": 1143})
     mail.action(USER, "pw", "inbox", "12", "archive")
     assert calls == ["login", "capability", ("MOVE", "12", "Archive")]
@@ -203,7 +203,7 @@ def test_move_uses_post_login_capabilities(monkeypatch):
 def test_unknown_charset_is_readable():
     from email import message_from_bytes, policy
 
-    from morrow.mail import message_text
+    from kagnode.mail import message_text
 
     msg = message_from_bytes(
         b"Content-Type: text/plain; charset=unknown-broken-charset\r\n\r\nHello from an old client.",
@@ -239,3 +239,72 @@ def test_attached_email_download_is_not_empty(monkeypatch):
     assert filename == "conversation.eml"
     assert decoded["Subject"] == "An attached conversation"
     assert "Keep the original conversation." in decoded.get_content()
+
+
+def test_filename_sanitization_for_downloads_and_uploads():
+    from kagnode.mail import safe_filename
+
+    assert safe_filename("../../danger\r\nname\u202e.pdf") == "dangername.pdf"
+    assert safe_filename("C:\\downloads\\report.pdf") == "report.pdf"
+    assert safe_filename("..") == "attachment"
+    assert safe_filename("\x00\x7f") == "attachment"
+
+
+def test_attachment_count_is_bounded():
+    files = [FileStorage(io.BytesIO(b"x"), filename=f"file-{i}.txt") for i in range(21)]
+    with pytest.raises(ValueError, match="at most 20"):
+        build_message({"to": "recipient@example.org"}, USER, [USER["email"]], files)
+
+
+def test_mime_part_and_header_limits():
+    from kagnode.mail import parse_message
+
+    raw = b"Content-Type: multipart/mixed; boundary=parts\r\n\r\n"
+    raw += b"--parts\r\nContent-Type: text/plain\r\n\r\nhello\r\n" * 201
+    raw += b"--parts--\r\n"
+    with pytest.raises(ValueError, match="too many MIME"):
+        parse_message(raw)
+    with pytest.raises(ValueError, match="headers are too large"):
+        parse_message(b"Subject: " + b"x" * 65536 + b"\r\n\r\nbody")
+    parsed = parse_message(b"Subject: Hello\r\n\r\nReadable mail.")
+    assert parsed["Subject"] == "Hello"
+
+
+def test_oversized_sender_header_is_rejected_before_parsing(app):
+    assert not allowed_sender(
+        app.config["DATABASE"],
+        "member@example.com",
+        "member@example.com",
+        ["A" * 8193 + " <member@example.com>"],
+    )
+
+
+def test_milter_rechecks_grant_after_message_body(app, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from kagnode import guard
+
+    class Base:
+        def getsymval(self, name):
+            return "member@example.com"
+
+        def setreply(self, *args):
+            self.reply = args
+
+    fake = SimpleNamespace(
+        Base=Base, CONTINUE=0, REJECT=1, TEMPFAIL=2, runmilter=lambda *args: None
+    )
+    monkeypatch.setitem(sys.modules, "Milter", fake)
+    monkeypatch.setenv("KAGNODE_DATABASE", app.config["DATABASE"])
+    with db.connect(app.config["DATABASE"]) as c:
+        c.execute("INSERT INTO grants VALUES(2,'hello@example.com')")
+    guard.run()
+    instance = fake.factory()
+    assert instance.envfrom("<hello@example.com>") == fake.CONTINUE
+    assert instance.header("From", "hello@example.com") == fake.CONTINUE
+    assert instance.eoh() == fake.CONTINUE
+    with db.connect(app.config["DATABASE"]) as c:
+        c.execute("DELETE FROM grants WHERE user_id=2")
+    assert instance.eom() == fake.REJECT
+    assert instance.reply[0] == "550"

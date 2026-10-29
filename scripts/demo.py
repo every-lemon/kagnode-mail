@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cryptography.fernet import Fernet
 
-from morrow import create_app, db
+from kagnode import create_app, db
 
 
 class DemoMail:
@@ -60,9 +60,9 @@ class DemoMail:
                 False,
             ),
             (
-                "Morrow <hello@example.com>",
-                "Welcome to your quieter corner",
-                "Welcome to Morrow.\n\nYour domain. Your people. Your mail.\n\nThis is a read-only design preview with fictional messages. The native installer connects the same interface to real Postfix and Dovecot mail services.\n\nStart by exploring People & access and Domains & DNS.\n\nMake yourself at home.",
+                "KagNode Mail <hello@example.com>",
+                "KagNode Mail setup",
+                "KagNode Mail preview.\n\nManage accounts and send-as permissions in People & access. Open Domains & DNS for domain records.\n\nThis preview cannot send mail or change server settings.",
                 False,
                 False,
             ),
@@ -128,7 +128,7 @@ def demo_app(path):
         ]:
             conn.execute(
                 "INSERT INTO users(email,name,password,admin) VALUES(?,?,?,?)",
-                (email, name, db.password_hash("MorrowPreview2026!"), admin),
+                (email, name, db.password_hash("KagNodePreview2026!"), admin),
             )
         conn.execute(
             "INSERT INTO aliases VALUES(?,?)", ("hello@example.com", "alex@example.com")
@@ -159,9 +159,9 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--port", type=int, default=8025)
     a = p.parse_args()
-    with tempfile.TemporaryDirectory(prefix="morrow-preview-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="kagnode-preview-") as tmp:
         app = demo_app(Path(tmp) / "preview.sqlite3")
         print(
-            f"Preview: http://127.0.0.1:{a.port} · alex@example.com / MorrowPreview2026!"
+            f"Preview: http://127.0.0.1:{a.port} · alex@example.com / KagNodePreview2026!"
         )
         app.run(host="127.0.0.1", port=a.port, debug=False, use_reloader=False)

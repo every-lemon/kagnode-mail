@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "morrow-mail"
-version = "0.1.0"
-description = "A lightweight, native Ubuntu mail server with a thoughtful web interface"
+name = "kagnode-mail"
+version = "0.2.0"
+description = "KagNode Mail — a lightweight open source mail server for Ubuntu 24.04"
 requires-python = ">=3.12,<3.13"
 license = {text = "MIT"}
 dependencies = ["Flask>=3.0.2,<4", "cryptography>=41,<51", "gunicorn>=20.1,<27"]
@@ -14,10 +14,10 @@ dependencies = ["Flask>=3.0.2,<4", "cryptography>=41,<51", "gunicorn>=20.1,<27"]
 test = ["pytest>=8,<10", "playwright>=1.48,<2"]
 
 [tool.setuptools.packages.find]
-include = ["morrow*"]
+include = ["kagnode*"]
 
 [tool.setuptools.package-data]
-morrow = ["templates/*.html", "static/*"]
+kagnode = ["templates/*.html", "static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

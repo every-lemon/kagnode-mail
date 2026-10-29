@@ -1,4 +1,4 @@
-"""Morrow Mail webmail and administration."""
+"""KagNode Mail webmail and administration."""
 
 import hashlib
 import hmac
@@ -16,7 +16,16 @@ from functools import wraps
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
-from flask import Flask, g, jsonify, render_template, request, send_file, session
+from flask import (
+    Flask,
+    Request,
+    g,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    session,
+)
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -24,10 +33,28 @@ from . import db
 from .mail import Mail, build_message
 
 
+class BoundedRequest(Request):
+    """Parser limits also work with Ubuntu 24.04's Flask 3.0/Werkzeug 3.0."""
+
+    max_form_memory_size = 2 * 1024 * 1024
+    max_form_parts = 40
+
+    @property
+    def max_content_length(self):
+        if self.path in ("/api/send", "/api/drafts"):
+            return (
+                24 * 1024 * 1024
+                if self.mimetype == "multipart/form-data"
+                else 2 * 1024 * 1024
+            )
+        return 64 * 1024
+
+
 def create_app(overrides=None):
     app = Flask(__name__)
+    app.request_class = BoundedRequest
     app.config.update(
-        DATABASE="/var/lib/morrow/directory.sqlite3",
+        DATABASE="/var/lib/kagnode/directory.sqlite3",
         IMAP_HOST="127.0.0.1",
         IMAP_PORT=1143,
         SMTP_HOST="127.0.0.1",
@@ -43,7 +70,7 @@ def create_app(overrides=None):
         PERMANENT_SESSION_LIFETIME=28800,
         DEMO=False,
     )
-    path = os.environ.get("MORROW_CONFIG", "/etc/morrow/config.json")
+    path = os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/config.json")
     if Path(path).is_file():
         app.config.update(json.loads(Path(path).read_text()))
     if overrides:
@@ -52,6 +79,12 @@ def create_app(overrides=None):
         raise RuntimeError(
             "Missing application secrets. Run the installer or scripts/demo.py."
         )
+    # Host-only, HTTPS-only cookies cannot be injected by sibling subdomains.
+    cookie_prefix = "__Host-" if app.config["SESSION_COOKIE_SECURE"] else ""
+    app.config["SESSION_COOKIE_NAME"] = cookie_prefix + "kagnode_csrf"
+    app.config["SESSION_COOKIE_DOMAIN"] = None
+    app.config["SESSION_COOKIE_PATH"] = "/"
+    auth_cookie = cookie_prefix + "kagnode_sid"
     cipher = Fernet(app.config["CREDENTIAL_KEY"])
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0)
     app.extensions["mail"] = Mail(app.config)
@@ -84,6 +117,18 @@ def create_app(overrides=None):
         def inner(*args, **kwargs):
             if not g.user["admin"]:
                 return jsonify(error="Administrator access required."), 403
+            if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+                try:
+                    authenticated = cipher.extract_timestamp(
+                        g.auth["password"].encode()
+                    )
+                except InvalidToken:
+                    authenticated = 0
+                if authenticated < int(time.time()) - 900:
+                    return jsonify(
+                        error="Confirm your password to continue with this administrator change.",
+                        code="reauth_required",
+                    ), 403
             return f(*args, **kwargs)
 
         return inner
@@ -112,7 +157,7 @@ def create_app(overrides=None):
     @app.before_request
     def authenticate():
         g.user, g.auth = None, None
-        token = request.cookies.get("morrow_sid", "")
+        token = request.cookies.get(auth_cookie, "")
         if token:
             g.auth = (
                 getdb()
@@ -132,6 +177,18 @@ def create_app(overrides=None):
                     .fetchone()
                 )
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            # CSRF remains mandatory for clients without browser metadata. When
+            # provided, reject cross-origin requests, including sibling subdomains.
+            origin = request.headers.get("Origin")
+            expected_origin = (
+                request.host_url.rstrip("/")
+                if app.config["DEMO"] or app.config["TESTING"]
+                else "https://" + app.config["MAIL_HOSTNAME"]
+            )
+            if request.headers.get("Sec-Fetch-Site") in ("cross-site", "same-site") or (
+                origin is not None and origin != expected_origin
+            ):
+                return jsonify(error="Cross-origin requests are not allowed."), 403
             if request.is_json and not isinstance(request.get_json(), dict):
                 return jsonify(error="Request body must be a JSON object."), 400
             expected = g.auth["csrf"] if g.user else session.get("csrf", "")
@@ -142,7 +199,7 @@ def create_app(overrides=None):
                 ), 403
             if app.config["DEMO"] and request.path not in ("/api/login", "/api/logout"):
                 return jsonify(
-                    error="This is a read-only preview. Install Morrow to make changes or send mail."
+                    error="This is a read-only preview. Install KagNode Mail to make changes or send mail."
                 ), 403
 
     @app.after_request
@@ -150,6 +207,8 @@ def create_app(overrides=None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         )
@@ -158,6 +217,18 @@ def create_app(overrides=None):
         )
         if request.path.startswith("/api/") or request.path == "/":
             response.headers["Cache-Control"] = "no-store"
+        return response
+
+    def set_auth_cookie(response, token, lifetime=28800):
+        response.set_cookie(
+            auth_cookie,
+            token,
+            max_age=lifetime,
+            secure=app.config["SESSION_COOKIE_SECURE"],
+            httponly=True,
+            samesite="Strict",
+            path="/",
+        )
         return response
 
     @app.errorhandler(Exception)
@@ -218,7 +289,7 @@ def create_app(overrides=None):
         )
         pw = data.get("password", "")
         # Comparable work for unknown accounts to avoid a cheap account-existence oracle.
-        fallback = "{SHA512-CRYPT}$6$rounds=100000$morrowdummysalt$BpJLW4Z3LeEvwyAElAeQ9oqLCYEEERjKy/fj1NP7ZCLYHHyA6AFub3TOi9kL6bXBYAcKf8eGhQqBKsktza4rK0"
+        fallback = "{SHA512-CRYPT}$6$rounds=100000$kagnodedummysalt$BpJLW4Z3LeEvwyAElAeQ9oqLCYEEERjKy/fj1NP7ZCLYHHyA6AFub3TOi9kL6bXBYAcKf8eGhQqBKsktza4rK0"
         valid = db.verify(pw, u["password"] if u else fallback)
         if not u or not valid:
             return jsonify(error="Email or password is incorrect."), 401
@@ -238,20 +309,43 @@ def create_app(overrides=None):
                     int(time.time()) + 28800,
                 ),
             )
+            # A forgotten browser cannot retain indefinite access; bound the
+            # account to its five newest sessions as well as the eight-hour TTL.
+            conn.execute(
+                "DELETE FROM sessions WHERE user_id=? AND rowid NOT IN "
+                "(SELECT rowid FROM sessions WHERE user_id=? ORDER BY rowid DESC LIMIT 5)",
+                (u["id"], u["id"]),
+            )
             db.audit(conn, email, "login", email)
         session.clear()
         response = jsonify(
             user=public_user(u), csrf=csrf, identities=db.identities(conn, u["id"])
         )
-        response.set_cookie(
-            "morrow_sid",
-            token,
-            max_age=28800,
-            secure=app.config["SESSION_COOKIE_SECURE"],
-            httponly=True,
-            samesite="Strict",
+        return set_auth_cookie(response, token)
+
+    @app.post("/api/account/reauth")
+    @login_required
+    def reauthenticate():
+        if not limit("reauth:" + str(g.user["id"]), 10, 900):
+            return jsonify(error="Too many attempts. Try again in 15 minutes."), 429
+        password = (request.get_json() or {}).get("password", "")
+        if not db.verify(password, g.user["password"]):
+            return jsonify(error="Password is incorrect."), 403
+        token = secrets.token_urlsafe(32)
+        with getdb() as conn:
+            conn.execute(
+                "UPDATE sessions SET token=?,password=? WHERE token=?",
+                (
+                    hashlib.sha256(token.encode()).hexdigest(),
+                    cipher.encrypt(password.encode()).decode(),
+                    g.auth["token"],
+                ),
+            )
+            db.audit(conn, g.user["email"], "session.reauthenticate", g.user["email"])
+        # Rotate the bearer token, preserving CSRF and the original absolute expiry.
+        return set_auth_cookie(
+            jsonify(ok=True), token, max(0, g.auth["expires"] - int(time.time()))
         )
-        return response
 
     @app.post("/api/logout")
     def logout():
@@ -261,10 +355,11 @@ def create_app(overrides=None):
         session.clear()
         response = jsonify(ok=True)
         response.delete_cookie(
-            "morrow_sid",
+            auth_cookie,
             secure=app.config["SESSION_COOKIE_SECURE"],
             httponly=True,
             samesite="Strict",
+            path="/",
         )
         return response
 

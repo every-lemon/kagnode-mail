@@ -32,7 +32,7 @@ http = urllib.request.build_opener(
 
 
 def req(path, data=None, method=None, csrf=None):
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "Host": "mail.example.test"}
     if csrf:
         headers["X-CSRF-Token"] = csrf
     r = urllib.request.Request(
@@ -80,15 +80,59 @@ def message(sender=MEMBER):
     m = EmailMessage()
     m["From"] = sender
     m["To"] = ADMIN
-    m["Subject"] = "Morrow real-stack test"
+    m["Subject"] = "KagNode Mail real-stack test"
     m.set_content("SMTP, DKIM and LMTP delivery work.")
     return m
 
 
 for port in (25, 587, 993, 8000, 443, 1143, 1587, 8891, 8892):
     wait(port)
+# Requests must name the configured host; private IPs and arbitrary Host values are rejected.
+for untrusted_host in ("untrusted.example", "127.0.0.1"):
+    request = urllib.request.Request(
+        BASE + "/api/session", headers={"Host": untrusted_host}
+    )
+    try:
+        http.open(request, timeout=10)
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 421, exc.code
+    else:
+        raise AssertionError("Untrusted HTTP Host was accepted")
+with http.open(
+    urllib.request.Request(
+        BASE + "/api/session",
+        headers={"Host": "mail.example.test", "Accept-Encoding": "gzip"},
+    ),
+    timeout=10,
+) as response:
+    assert response.headers.get("Content-Encoding") is None
+    assert "no-store" in response.headers.get("Cache-Control", "")
+    assert response.headers.get("Strict-Transport-Security", "").startswith("max-age=")
+    cookies = response.headers.get_all("Set-Cookie") or []
+    assert any(
+        "__Host-kagnode_csrf=" in value
+        and "Secure" in value
+        and "HttpOnly" in value
+        and "SameSite=Strict" in value
+        and "Path=/" in value
+        for value in cookies
+    )
+print(
+    "PASS canonical hostname, no compressed session responses, HSTS and hardened CSRF cookie"
+)
 csrf = req("/session")["csrf"]
 csrf = req("/login", {"email": ADMIN, "password": PASSWORD}, csrf=csrf)["csrf"]
+assert any(cookie.name == "__Host-kagnode_sid" and cookie.secure for cookie in jar)
+# Rotation on password confirmation keeps the existing CSRF synchronizer token valid.
+old_session = next(
+    cookie.value for cookie in jar if cookie.name == "__Host-kagnode_sid"
+)
+reauth = req("/account/reauth", {"password": PASSWORD}, csrf=csrf)
+assert reauth.get("ok") is True
+assert old_session != next(
+    cookie.value for cookie in jar if cookie.name == "__Host-kagnode_sid"
+)
+print("PASS secure bearer cookie and real admin reauthentication/session rotation")
 req(
     "/admin/users",
     {"email": MEMBER, "name": "Member", "password": PASSWORD, "quota_mb": 64},
@@ -158,7 +202,7 @@ for _ in range(50):
 assert raw, "Local SMTP message did not arrive"
 parsed = email.message_from_bytes(raw)
 assert parsed["From"] == "hello@example.test"
-key = Path("/etc/morrow/dkim-public.txt").read_text().encode()
+key = Path("/etc/kagnode/dkim-public.txt").read_text().encode()
 assert dkim.verify(raw, dnsfunc=lambda name, timeout=5: key), (
     "DKIM signature did not verify"
 )
@@ -178,7 +222,27 @@ with smtp() as s:
     )
 print("PASS revoked send-as permission immediately rejected by native SMTP")
 
-# Webmail runs as the unprivileged morrow user and must authenticate over loopback.
+# Recheck authorization at DATA completion as well as at the envelope/header stage.
+req(
+    f"/admin/users/{uid}/identities",
+    {"identities": ["hello@example.test"]},
+    method="PUT",
+    csrf=csrf,
+)
+with smtp() as s:
+    assert s.mail("hello@example.test")[0] == 250
+    assert s.rcpt(ADMIN)[0] == 250
+    assert s.docmd("DATA")[0] == 354
+    s.send(
+        b"From: hello@example.test\r\nTo: admin@example.test\r\nSubject: Revoked during DATA\r\n\r\nA message still uploading.\r\n"
+    )
+    time.sleep(0.2)
+    req(f"/admin/users/{uid}/identities", {"identities": []}, method="PUT", csrf=csrf)
+    s.send(b".\r\n")
+    assert s.getreply()[0] == 550
+print("PASS sender grant revoked during DATA is rejected before queue acceptance")
+
+# Webmail runs as the unprivileged kagnode user and must authenticate over loopback.
 result = req(
     "/send",
     {
@@ -204,7 +268,7 @@ req(
 assert req("/messages?folder=archive")["total"] >= 1
 print("PASS web send, Sent append, inbox list/read and archive over real IMAP")
 
-boundary = "MorrowLabMultipartBoundary"
+boundary = "KagNodeLabMultipartBoundary"
 fields = {
     "from": ADMIN,
     "to": MEMBER,
@@ -224,6 +288,7 @@ r = urllib.request.Request(
     BASE + "/api/drafts",
     data=b"".join(parts),
     headers={
+        "Host": "mail.example.test",
         "Content-Type": "multipart/form-data; boundary=" + boundary,
         "X-CSRF-Token": csrf,
     },
@@ -240,7 +305,11 @@ assert (
 )
 part = saved_message["attachments"][0]["id"]
 with http.open(
-    BASE + f"/api/messages/{saved_uid}/attachments/{part}?folder=drafts", timeout=20
+    urllib.request.Request(
+        BASE + f"/api/messages/{saved_uid}/attachments/{part}?folder=drafts",
+        headers={"Host": "mail.example.test"},
+    ),
+    timeout=20,
 ) as response:
     assert response.read() == b"Real attachment bytes."
     assert "attachment;" in response.headers["Content-Disposition"]

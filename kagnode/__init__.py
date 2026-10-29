@@ -1,4 +1,4 @@
-"""Morrow Mail. Keep CLI and milter startup free of web-framework imports."""
+"""KagNode Mail. Keep CLI and milter startup free of web-framework imports."""
 
 
 def create_app(overrides=None):

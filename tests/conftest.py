@@ -1,7 +1,7 @@
 import pytest
 from cryptography.fernet import Fernet
 
-from morrow import create_app, db
+from kagnode import create_app, db
 
 
 @pytest.fixture(scope="session")

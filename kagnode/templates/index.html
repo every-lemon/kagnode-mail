@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f7fc">
+<title>KagNode Mail — Open source mail server</title>
+<meta name="description" content="KagNode Mail — open source mail server.">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<svg class="icon-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-inbox" viewBox="0 0 24 24"><path d="m4 4-2 10v6h20v-6L20 4Z M2 14h6l2 3h4l2-3h6"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z M22 2 11 13"/></symbol>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="m15 4 5 5 M3 21l5-1L21 7a3.5 3.5 0 0 0-5-5L3 15Z"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 3h18v5H3z M5 8v13h14V8 M10 12h4"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 3 6v6c0 6 9 10 9 10s9-4 9-10V6Z m-5 10 3 3 6-6"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-3a7 7 0 0 1 14 0v3 M17 3a4 4 0 0 1 0 8 M19 14a6 6 0 0 1 3 5v2"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><path d="M2 12h20"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16 M4 12h16"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12 M18 6 6 18"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 3v6h-6 M3 21v-6h6 M3 9a9 9 0 0 1 15-6l3 6 M21 15a9 9 0 0 1-15 6l-3-6"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2 3 6.5 7 1-5 5 1 7-6-3.5-6 3.5 1-7-5-5 7-1Z"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16 M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 3H3v18h7 M8 12h14 m-5-5 5 5-5 5"/></symbol>
+<symbol id="i-reply" viewBox="0 0 24 24"><path d="m9 4-7 7 7 7 M2 11h10a9 9 0 0 1 9 9"/></symbol>
+<symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m9 15 8-8a3 3 0 0 0-4-4L3 13a6 6 0 0 0 8 8L22 10 M6 18 16 8"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 5 10 8L22 5"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13A9 9 0 0 1 11 3 9 9 0 1 0 21 13Z"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18 M3 12h18 M3 18h18"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+</defs></svg>
+<div id="loading" class="loading-screen"><div class="brand" aria-label="KagNode Mail"><img class="brand-mark" src="/static/logo.svg" width="36" height="36" alt=""><span class="brand-wordmark"><strong>KagNode</strong><small>MAIL</small></span></div><p>Loading…</p></div>
+<section id="login-view" class="login-layout" hidden>
+ <div class="login-form-wrap"><div class="brand" aria-label="KagNode Mail"><img class="brand-mark" src="/static/logo.svg" width="36" height="36" alt=""><span class="brand-wordmark"><strong>KagNode</strong><small>MAIL</small></span></div><h2>Sign in</h2><form id="login-form"><label>Email address<input name="email" type="email" autocomplete="username" placeholder="you@example.com" required maxlength="254"></label><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label><p id="login-error" class="form-error" role="alert"></p><button class="button primary wide" type="submit">Sign in</button></form><p class="login-help">Contact your administrator for access or password resets.</p><div id="demo-login" class="notice" hidden>Read-only preview<br><strong>alex@example.com</strong> · <strong>KagNodePreview2026!</strong></div></div>
+</section>
+<div id="workspace" class="workspace" hidden>
+ <a class="skip-link" href="#main">Skip to main content</a>
+ <aside class="sidebar" id="sidebar"><a href="#inbox" class="brand" aria-label="KagNode Mail"><img class="brand-mark" src="/static/logo.svg" width="36" height="36" alt=""><span class="brand-wordmark"><strong>KagNode</strong><small>MAIL</small></span></a><button id="compose-button" class="button primary compose-main"><svg class="icon"><use href="#i-plus"/></svg> Compose <kbd>N</kbd></button><span class="nav-label">MAILBOX</span><nav id="mail-nav" aria-label="Mailbox folders"></nav><div id="admin-nav-wrap" hidden><span class="nav-label admin-label">ADMINISTRATION</span><nav id="admin-nav" aria-label="Administration"></nav></div><div class="sidebar-bottom"><button class="profile-button" id="profile-button"><span class="avatar" id="sidebar-avatar"></span><span><strong id="sidebar-name"></strong><small id="sidebar-role"></small></span><svg class="icon"><use href="#i-settings"/></svg></button></div></aside>
+ <button id="sidebar-backdrop" class="mobile-backdrop" aria-label="Close navigation" hidden></button>
+ <main class="main" id="main" tabindex="-1"><header class="topbar"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="Toggle navigation"><svg class="icon"><use href="#i-menu"/></svg></button><a href="#inbox" class="mobile-brand" aria-label="KagNode Mail"><img src="/static/logo.svg" width="26" height="26" alt=""></a><span id="server-host" class="server-host"></span><div class="topbar-right"><span id="preview-badge" class="pill" hidden>READ-ONLY</span><button id="theme-toggle" class="icon-button" aria-label="Toggle dark theme"><svg class="icon"><use href="#i-moon"/></svg></button><button id="logout-button" class="icon-button" aria-label="Sign out" title="Sign out"><svg class="icon"><use href="#i-logout"/></svg></button></div></header>
+ <section class="page-heading"><h1 id="page-title">Inbox</h1></section>
+ <section id="mail-view" class="mail-surface"><div class="mail-list-panel"><div class="list-toolbar"><label class="search-wrap"><svg class="icon"><use href="#i-search"/></svg><input id="mail-search" type="search" placeholder="Search this folder" aria-label="Search this folder"><kbd>/</kbd></label></div><div class="list-subhead"><strong id="list-count">All messages</strong><button id="refresh-mail" class="icon-button small" aria-label="Refresh messages"><svg class="icon"><use href="#i-refresh"/></svg></button></div><div id="message-list" class="message-list" aria-live="polite"></div><div class="pagination"><button id="prev-page" class="text-button">← Newer</button><span id="page-count">Page 1</span><button id="next-page" class="text-button">Older →</button></div></div><div id="message-reader" class="message-reader"></div></section>
+ <section id="admin-view" class="admin-view" hidden></section><section id="account-view" class="admin-view" hidden></section>
+ </main>
+</div>
+<dialog id="compose-dialog" class="compose-dialog" aria-label="New message"><form id="compose-form"><header class="dialog-header"><div><h2>New message</h2></div><button type="button" class="icon-button" data-close="compose-dialog" aria-label="Close composer"><svg class="icon"><use href="#i-close"/></svg></button></header><input type="hidden" name="draft_uid"><div class="compose-fields"><label class="inline-field">From<select id="compose-from" name="from" aria-label="Send from"></select></label><label class="inline-field">To<input name="to" placeholder="someone@example.com" required aria-label="To"></label><label class="inline-field">Cc<input name="cc" placeholder="Optional" aria-label="Cc"></label><label class="inline-field">Bcc<input name="bcc" placeholder="Hidden from recipients" aria-label="Bcc"></label><label class="inline-field">Subject<input name="subject" placeholder="Add a subject" maxlength="300" aria-label="Subject"></label><textarea name="body" placeholder="Write your message…" aria-label="Message" rows="10"></textarea><label class="file-label"><svg class="icon"><use href="#i-paperclip"/></svg><span>Attachments · 20 files, 16 MiB total</span><input id="compose-files" type="file" name="attachments" multiple></label></div><p class="form-error" id="compose-error" role="alert"></p><footer class="compose-footer"><button type="submit" class="button primary"><svg class="icon"><use href="#i-send"/></svg> Send</button><button type="button" id="save-draft" class="button">Save draft</button></footer></form></dialog>
+<dialog id="form-dialog" class="form-dialog" aria-label="Settings dialog"><div id="form-dialog-content"></div></dialog>
+<dialog id="reauth-dialog" class="form-dialog reauth-dialog" aria-labelledby="reauth-title"><form id="reauth-form"><header class="dialog-header"><div><h2 id="reauth-title">Confirm your password</h2></div><button type="button" class="icon-button" data-close="reauth-dialog" aria-label="Cancel password confirmation"><svg class="icon"><use href="#i-close"/></svg></button></header><div class="stack-form"><p class="panel-note">Required for admin changes.</p><label>Current password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label><p id="reauth-error" class="form-error" role="alert"></p><button class="button primary" type="submit">Confirm</button></div></form></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+</body></html>
