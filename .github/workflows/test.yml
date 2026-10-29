@@ -1,0 +1,40 @@
+name: Validate Morrow
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e '.[test]'
+      - run: python -m pytest -q
+      - run: shellcheck install.sh scripts/*.sh tests/*.sh
+      - run: playwright install --with-deps chromium
+      - name: Browser flows
+        run: |
+          python scripts/demo.py > /tmp/morrow-preview.log 2>&1 &
+          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8025/ >/dev/null && break; sleep 1; done
+          python tests/browser_check.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: interface-screenshots
+          path: docs/screenshots/
+  native-mail:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real Ubuntu 24.04 mail services
+        run: |
+          docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
+            touch /.morrow-lab
+            bash /src/tests/lab-install.sh prepare
+            bash /src/tests/lab-install.sh test
+          '

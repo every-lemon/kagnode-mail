@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-29",
+  "release": "0.1.0",
+  "environment": "Isolated Ubuntu 24.04 amd64 root filesystem with private network/PID namespaces; actual native daemons; 8 GiB host",
+  "application_tests": {
+    "passed": 40,
+    "runtime": "Ubuntu Python 3.12 and distribution Flask/cryptography packages"
+  },
+  "browser_checks": "Passed desktop/mobile, admin/member access, read-only preview, and non-JSON proxy error handling",
+  "mail_integration": "Passed actual SMTP, STARTTLS, sender restrictions, DKIM verification, LMTP, IMAPS, web send, Sent, drafts, attachment downloads, archive/trash, account disabling and loopback bindings",
+  "idle_sample": {
+    "after_idle_minutes": 5,
+    "core_pss_mib": 78.3,
+    "sample_seconds": 30.0,
+    "cpu_percent_one_core": 0.0,
+    "excludes": [
+      "Operating system",
+      "Filesystem cache",
+      "fail2ban (not running in non-systemd lab)",
+      "Measurement process"
+    ],
+    "interpretation": "No measured CPU ticks in this interval; not a guarantee of zero CPU or a universal memory requirement."
+  },
+  "package_install_estimate": {
+    "additional_megabytes": 180,
+    "scope": "APT estimate on a minimal Ubuntu rootfs, including test tools; excludes base OS, mail storage, backups and download caches."
+  },
+  "packages": {
+    "postfix": "3.8.6-1ubuntu0.1",
+    "dovecot-core": "1:2.3.21+dfsg1-2ubuntu6.5",
+    "opendkim": "2.11.0~beta2-9build4",
+    "nginx": "1.24.0-2ubuntu7.19",
+    "gunicorn": "20.1.0-6ubuntu0.1",
+    "python3-flask": "3.0.2-1ubuntu1.1",
+    "python3-cryptography": "41.0.7-4ubuntu0.4",
+    "python3-milter": "1.0.5-1build5"
+  },
+  "not_qualified": [
+    "Real-domain ACME issuance/renewal",
+    "Native systemd lifecycle and fail2ban journal bans",
+    "Public incoming/outgoing deliverability",
+    "Backup restoration on a different host",
+    "Load/concurrency capacity",
+    "Independent security audit"
+  ]
+}
