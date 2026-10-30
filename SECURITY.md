@@ -4,7 +4,7 @@ KagNode Mail 0.2 is an initial implementation for a small, trusted group on a de
 
 ## Report a vulnerability
 
-When this repository is published, enable GitHub **Private vulnerability reporting** under Security settings and use that channel. Until then, contact the repository owner privately. Do not include real passwords, mailbox content, keys, or active session cookies in public issues. Never send test messages to third parties without their permission.
+Use [GitHub private vulnerability reporting](https://github.com/every-lemon/kagnode-mail/security/advisories/new). Do not include real passwords, mailbox content, keys, or active session cookies in public issues. Never send test messages to third parties without their permission.
 
 ## Protections
 

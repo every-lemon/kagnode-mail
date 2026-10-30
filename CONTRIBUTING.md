@@ -8,4 +8,4 @@ Keep production services native and small. Avoid introducing a frontend runtime,
 
 Use fictional addresses in tests. Do not commit keys, real mail, config secrets, SQLite databases, password files, test root filesystems, or virtual environments. Review `git diff --cached` before publication. Tests must not send public mail or alter provider DNS.
 
-The initial repository does not presume a GitHub owner. After publishing, set up branch protection, enable private security reporting and dependency/security alerts, and adjust repository links as needed.
+Submit changes through [pull requests](https://github.com/every-lemon/kagnode-mail/pulls). Report security issues through the private channel in [SECURITY.md](SECURITY.md).

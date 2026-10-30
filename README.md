@@ -41,9 +41,11 @@ Use a **fresh, dedicated server** with a static public IPv4 address. A 1 GiB VPS
 
 1. Point `mail.example.com` to your real public IP using an A record, with any HTTP proxy disabled.
 2. Allow inbound TCP **25, 80, 443, 587, 993** in your provider/network firewall. Leave SSH accessible. KagNode Mail does not change or enable your firewall.
-3. Clone/download this repository onto the server. Review the configuration without root or installation:
+3. Download the source and review the configuration:
 
    ```bash
+   git clone https://github.com/every-lemon/kagnode-mail.git
+   cd kagnode-mail
    ./install.sh --dry-run --domain example.com --hostname mail.example.com \
      --ipv4 203.0.113.10 --admin admin@example.com --output ./review
    ```
@@ -85,16 +87,9 @@ There is one Gunicorn worker with two threads, demand-started Dovecot processes,
 
 The small default stack **does not include a content spam filter or antivirus engine**. Junk is a manual folder. OpenDKIM signs outgoing mail; it is not an inbound spam/DMARC enforcement system. Read [security](SECURITY.md) before deciding whether to add filtering or move beyond a small trusted team.
 
-## Publish on GitHub
+## Source and downloads
 
-Review the source and validation notes, then create an empty public repository in your GitHub account. From this project directory, connect it and push:
-
-```bash
-git remote add origin https://github.com/YOUR-NAME/kagnode-mail.git
-git push -u origin main
-```
-
-The repository includes an MIT license, screenshots, security policy, commit-pinned GitHub Actions tests, and Dependabot update configuration. No account secrets, server data, or test root filesystem belong in a public repository.
+[Repository](https://github.com/every-lemon/kagnode-mail) · [Releases](https://github.com/every-lemon/kagnode-mail/releases) · [Report a vulnerability privately](https://github.com/every-lemon/kagnode-mail/security/advisories/new)
 
 ## Development and checks
 
@@ -116,4 +111,4 @@ The [GitHub Actions workflow](.github/workflows/test.yml) includes Python/shell 
 - [Security review and hardening details](docs/security-review.md)
 - [Contributing](CONTRIBUTING.md)
 
-MIT licensed. Ready to publish as a repository; no remote repository or public service is created by running the preview or dry run.
+MIT licensed.
