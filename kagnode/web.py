@@ -41,7 +41,7 @@ class BoundedRequest(Request):
 
     @property
     def max_content_length(self):
-        if self.path in ("/api/send", "/api/drafts"):
+        if self.path in ("/api/send", "/api/drafts", "/api/v1/send", "/api/v1/drafts"):
             return (
                 24 * 1024 * 1024
                 if self.mimetype == "multipart/form-data"
@@ -157,6 +157,8 @@ def create_app(overrides=None):
     @app.before_request
     def authenticate():
         g.user, g.auth = None, None
+        if request.path == "/api/v1" or request.path.startswith("/api/v1/"):
+            return None  # The versioned API authenticates bearer tokens independently.
         token = request.cookies.get(auth_cookie, "")
         if token:
             g.auth = (
@@ -233,6 +235,10 @@ def create_app(overrides=None):
 
     @app.errorhandler(Exception)
     def error(exc):
+        if request.path == "/api/v1" or request.path.startswith("/api/v1/"):
+            from .api import api_error
+
+            return api_error(exc)
         if isinstance(exc, HTTPException):
             return jsonify(error=exc.description), exc.code
         if isinstance(exc, PermissionError):
@@ -736,4 +742,7 @@ def create_app(overrides=None):
                     row.update(status="unavailable", observed=[])
         return jsonify(records=rows)
 
+    from .api import register_api
+
+    register_api(app, getdb, admin_required, limit, cipher)
     return app

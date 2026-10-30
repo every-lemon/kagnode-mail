@@ -1,26 +1,28 @@
 {
-  "date": "2026-10-29",
-  "release": "0.2.1",
+  "date": "2026-10-30",
+  "release": "0.3.0",
   "environment": "Isolated Ubuntu 24.04 amd64 root filesystem with private network/PID namespaces; actual native daemons; 8 GiB host",
   "application_tests": {
-    "passed": 69,
+    "passed": 137,
     "runtime": "Ubuntu Python 3.12 and distribution Flask/cryptography packages; disposable test databases on private tmpfs",
-    "duration_seconds": 4.23
+    "duration_seconds": 9.57
   },
-  "browser_checks": "Passed concise branded login/mail/admin/overview/account/DNS views, mobile layouts, system/light/dark themes, regular-member restrictions, read-only preview, proxy errors, and administrator confirmation cancel/failure/success",
-  "mail_integration": "Passed actual SMTP, STARTTLS, sender restrictions including revocation during DATA, DKIM verification, LMTP, IMAPS, web send/Sent/drafts/attachments/archive/trash, account disabling, loopback bindings, canonical HTTP hostname, uncompressed session responses, secure cookies and reauthentication/bearer rotation",
+  "browser_checks": "Passed existing mail/admin/mobile flows plus token creation, scope validation, replacement/revocation, light/dark/mobile layouts, escaped hostile labels, clipboard-denial fallback, secret cleanup, and token reauthentication. Disposable real-backend create/replace/revoke browser smoke also passed.",
+  "mail_integration": "Passed actual SMTP, STARTTLS, sender restrictions including revocation during DATA, DKIM verification, LMTP, IMAPS, web send/Sent/drafts/attachments/archive/trash, account disabling, loopback bindings, canonical HTTP hostname, uncompressed session responses, secure cookies and reauthentication/bearer rotation; bearer send/partial recipients, read without Seen mutation, stale UIDVALIDITY rejection, multipart API drafts/replace/attachments, flags/moves/delete scopes, public credential rejection, per-token sender restrictions and revocation during DATA",
   "idle_sample": {
     "after_idle_minutes": 2,
-    "core_pss_mib": 81.1,
+    "core_pss_mib": 82.2,
     "sample_seconds": 30.0,
-    "cpu_percent_one_core": 0.0,
+    "cpu_percent_one_core": 0.033,
     "excludes": [
       "Operating system",
       "Filesystem cache",
       "fail2ban (not running in non-systemd lab)",
       "Measurement process"
     ],
-    "interpretation": "No measured CPU ticks in this interval; not a guarantee of zero CPU or a universal memory requirement."
+    "interpretation": "Observed after the synthetic native/API workload and two minutes idle; not a universal minimum, zero-CPU claim, or load-capacity guarantee.",
+    "release": "0.3.0",
+    "date": "2026-10-30"
   },
   "package_install_estimate": {
     "additional_megabytes": 180,
@@ -45,10 +47,10 @@
     "Independent security audit"
   ],
   "systemd_static_validation": "Unit syntax passed on systemd 255 with generators and dependency recursion disabled; runtime lifecycle unqualified",
-  "interface_update": {
+  "openapi_validation": "OpenAPI 3.1 specification validated with openapi-spec-validator 0.7.2",
+  "api_update": {
     "date": "2026-10-30",
-    "scope": "Theme CSS and browser chrome colors only; backend validation and resource sample above are from 2026-10-29.",
-    "browser_suite": "Passed",
-    "computed_colors": "Black page, panel and sidebar; white primary and message text; buttons, active navigation and avatars retain #2861EC in both themes; logo not inverted."
+    "repository": "https://github.com/every-lemon/mail",
+    "scope": "Fresh-install token tables/revocation triggers, private transport credentials, versioned API and admin token UI; existing KagNode branding and paths retained."
   }
 }

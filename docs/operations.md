@@ -24,7 +24,7 @@ sudo python3 -m kagnode.cli reset-password --admin person@example.com
 sudo doveadm kick person@example.com
 ```
 
-The password is prompted without echo. This invalidates web sessions. Dovecot does not automatically disconnect existing native IMAP sessions when a database password/active flag changes. **For immediate native-session revocation after disabling an account or resetting a password, run `doveadm kick FULL_EMAIL`.** New authentications are denied after disabling; submission identity checks consult current active status, including already-authenticated SMTP connections. A password reset alone does not terminate an existing authenticated SMTP connection. For a compromised account, disable it first, kick its IMAP sessions, and have the operator terminate any existing SMTP client connections before re-enabling it.
+The password is prompted without echo. This invalidates web sessions and permanently revokes every API token for that mailbox. Dovecot does not automatically disconnect existing native IMAP sessions when a database password/active flag changes. **For immediate native-session revocation after disabling an account or resetting a password, run `doveadm kick FULL_EMAIL`.** New authentications are denied after disabling; submission identity checks consult current active status, including already-authenticated SMTP connections. A password reset alone does not terminate an existing authenticated SMTP connection. For a compromised account, disable it first, kick its IMAP sessions, and have the operator terminate any existing SMTP client connections before re-enabling it.
 
 Admin **Edit** disables accounts without deleting their messages. Keep at least one active administrator. Re-enable a preserved account to restore access; do not recycle disabled addresses without a deliberate data-retention decision.
 
@@ -36,7 +36,7 @@ Keep encrypted copies on a different machine/storage provider and test restorati
 sudo bash /opt/kagnode/scripts/backup.sh /var/backups/kagnode-2026-10-29.tar.gz
 ```
 
-This script **briefly stops active web, SMTP, guard, and IMAP services** to take a consistent snapshot, then starts the services that were active. It preserves mail, the Postfix queue, SQLite state, configuration, app code, TLS keys, and DKIM keys. Session records are removed from the backup so restoration requires fresh logins. The archive is created exclusively with mode 0600 from its first byte and cannot overwrite an existing file or destination symlink. It contains highly sensitive material. The script does not encrypt or upload it.
+This script **briefly stops active web, SMTP, guard, and IMAP services** to take a consistent snapshot, then starts the services that were active. It preserves mail, the Postfix queue, SQLite state, configuration, app code, TLS keys, and DKIM keys. Session and API token records are removed from the backup so restoration requires fresh logins and newly issued integration tokens. The archive is created exclusively with mode 0600 from its first byte and cannot overwrite an existing file or destination symlink. It contains highly sensitive material. The script does not encrypt or upload it.
 
 If the stopped SQLite database still has a rollback or WAL journal, backup refuses to recover it as root. Start the application so recovery occurs as the `kagnode` user, investigate any database errors, then retry the backup. A failed archive is incomplete; preserve it only for diagnosis and choose a new output filename for the next attempt.
 
@@ -57,11 +57,13 @@ DKIM keys must match published DNS. The database and application encryption key 
 
 ## Rename and older installations
 
-KagNode Mail 0.2 uses the `kagnode` Python package and service account, `kagnode-web`/`kagnode-guard` units, and `/etc/kagnode`, `/opt/kagnode`, `/var/lib/kagnode` paths. The installer refuses an existing Morrow prototype; renaming files alone is not a supported migration. Preserve a verified backup and export mail/accounts before a deliberate move to a fresh host. Never delete old mail data or keys simply to bypass this refusal. The new cookie names require a fresh sign-in.
+KagNode Mail 0.3 uses the `kagnode` Python package and service account, `kagnode-web`/`kagnode-guard` units, and `/etc/kagnode`, `/opt/kagnode`, `/var/lib/kagnode` paths. The installer refuses an existing Morrow prototype; renaming files alone is not a supported migration. Preserve a verified backup and export mail/accounts before a deliberate move to a fresh host. Never delete old mail data or keys simply to bypass this refusal. The new cookie names require a fresh sign-in.
 
 ## Update
 
-This release has no automatic updater or database migration framework. Take a tested backup first and review release notes. Apply Ubuntu security updates through your normal server maintenance process. For compatible KagNode Mail source updates, replace `/opt/kagnode/kagnode` and `/opt/kagnode/scripts` from a reviewed release as root, preserving `/etc/kagnode`, the database, Maildir, queue, and DKIM/TLS keys; then restart `kagnode-web` and `kagnode-guard` and run health checks.
+This release has no automatic updater or database migration framework. Take a tested backup first and review release notes. Apply Ubuntu security updates through your normal server maintenance process. **0.3.0 requires a fresh installation:** token tables, revocation triggers, and mail authentication configuration changed together. Copying application code alone from 0.2 is not supported. Existing installs require a separately reviewed migration; preserve accounts, mail, and keys. The GitHub repository rename to `mail` does not change server paths.
+
+For compatible same-schema KagNode Mail source updates, replace `/opt/kagnode/kagnode` and `/opt/kagnode/scripts` from a reviewed release as root, preserving `/etc/kagnode`, the database, Maildir, queue, and DKIM/TLS keys; then restart `kagnode-web` and `kagnode-guard` and run health checks.
 
 The installer `--resume` reapplies generated service configurations and creates config backups. It is for resuming/reapplying this same installation, and will overwrite manual edits in managed files. It does not upgrade schema across future releases or merge local changes. Always review changes to renderer output before reapplying. Never use `git pull` as root from an unreviewed remote and immediately execute it.
 

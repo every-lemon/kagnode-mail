@@ -22,7 +22,7 @@ cleanup() {
 trap cleanup EXIT
 printf 'Pausing active mail services for a consistent mailbox and SQLite snapshot.\n'
 if ((${#ACTIVE[@]})); then systemctl stop "${ACTIVE[@]}"; fi
-# Exclude transient sessions: a restore must require fresh authentication.
+# Exclude sessions and API credentials: a restore requires fresh authentication.
 install -d -m 700 "$STAGE/var/lib/kagnode"
 python3 - "$STAGE/var/lib/kagnode/directory.sqlite3" <<'PY'
 import os,sqlite3,sys
@@ -34,6 +34,7 @@ if any(os.path.lexists(database + suffix) for suffix in ('-journal','-wal','-shm
 with sqlite3.connect('file:' + database + '?mode=ro&immutable=1', uri=True) as src, sqlite3.connect(sys.argv[1]) as dst:
  src.backup(dst)
  dst.execute('DELETE FROM sessions')
+ dst.execute('DELETE FROM api_tokens')
 PY
 # Store the snapshot database at its normal archive path, then configuration,
 # mailbox files and queued mail. Numeric owners are preserved for this server.

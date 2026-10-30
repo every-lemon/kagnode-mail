@@ -32,7 +32,9 @@ http = urllib.request.build_opener(
 
 
 def req(path, data=None, method=None, csrf=None):
-    headers = {"Content-Type": "application/json", "Host": "mail.example.test"}
+    headers = {"Host": "mail.example.test"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
     if csrf:
         headers["X-CSRF-Token"] = csrf
     r = urllib.request.Request(
@@ -59,7 +61,7 @@ def wait(port):
 
 
 def smtp():
-    s = smtplib.SMTP("127.0.0.1", 587, timeout=10)
+    s = smtplib.SMTP("127.0.0.1", 587, timeout=30)
     s.starttls(context=CTX)
     s.login(MEMBER, PASSWORD)
     return s
@@ -329,6 +331,10 @@ assert req("/messages?folder=trash")["total"] == 0
 print(
     "PASS multipart draft save, Bcc preservation, attachment download, trash and UID-specific deletion"
 )
+
+from integration_api import run as run_api_checks
+
+run_api_checks(globals())
 
 req(f"/admin/users/{uid}", {"active": False}, method="PATCH", csrf=csrf)
 try:

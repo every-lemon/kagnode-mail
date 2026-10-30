@@ -126,6 +126,152 @@ with sync_playwright() as p:
     page.locator("#profile-button").click()
     page.get_by_role("heading", name="Mail clients", exact=True).wait_for()
     page.screenshot(path=str(OUT / "account.png"), full_page=True)
+    # Tokens use mock mutations so the preview remains read-only.
+    token_users = page.request.get(URL + "/api/admin").json()["users"]
+    token_owner = next(u for u in token_users if u["email"] == "alex@example.com")
+    token_records = [{
+        "id": "preview-token", "user_id": token_owner["id"],
+        "email": token_owner["email"], "label": "Notifications",
+        "scopes": ["read", "send"], "senders": ["hello@example.com"],
+        "expires": None, "created": 1793318400, "last_used": 1793404800,
+        "revoked": None,
+    }]
+    token_calls = {"creates": [], "deletes": [], "confirmed": False, "attempts": 0}
+    fixture_secret = "kgn_preview_browser_only_not_a_real_token"
+
+    def token_api(route):
+        method = route.request.method
+        if method == "GET":
+            result = {"tokens": token_records, "users": token_users}
+        elif method == "POST":
+            token_calls["attempts"] += 1
+            if not token_calls["confirmed"]:
+                route.fulfill(status=403, content_type="application/json",
+                    body=json.dumps({"error": "Confirm your password.", "code": "reauth_required"}))
+                return
+            data = route.request.post_data_json
+            token_calls["creates"].append(data)
+            owner = next(u for u in token_users if u["id"] == data["user_id"])
+            record = {
+                "id": "created-" + str(len(token_calls["creates"])),
+                "user_id": owner["id"], "email": owner["email"],
+                "label": data["label"], "scopes": data["scopes"],
+                "senders": data["senders"], "expires": None,
+                "created": 1793404800, "last_used": None, "revoked": None,
+            }
+            token_records.append(record)
+            result = {"token": record, "secret": fixture_secret}
+        else:
+            token_id = route.request.url.rsplit("/", 1)[-1]
+            token_calls["deletes"].append(token_id)
+            next(t for t in token_records if t["id"] == token_id)["revoked"] = 1793404800
+            result = {"ok": True}
+        route.fulfill(content_type="application/json", body=json.dumps(result))
+
+    def token_reauth(route):
+        token_calls["confirmed"] = True
+        route.fulfill(content_type="application/json", body=json.dumps({"ok": True}))
+
+    page.route("**/api/account/reauth", token_reauth)
+    page.route("**/api/admin/tokens", token_api)
+    page.route("**/api/admin/tokens/*", token_api)
+    page.locator('a[href="#tokens"]').click()
+    page.get_by_role("heading", name="Notifications", exact=True).wait_for()
+    page.screenshot(path=str(OUT / "tokens.png"), full_page=True)
+    page.get_by_role("button", name="Create token", exact=True).click()
+    page.locator("#token-form").wait_for()
+    assert page.locator('#token-form [name=scopes]:checked').count() == 0
+    expect(page.locator('#token-form [name=expiry]')).to_have_value("90")
+    page.locator('#token-form [name=label]').fill("App server")
+    page.locator('#token-form button[type=submit]').click()
+    page.locator('#token-form .form-error').filter(has_text="Select at least one permission").wait_for()
+    assert token_calls["creates"] == []
+    page.locator('#token-form [name=scopes][value=send]').check()
+    page.locator('#token-form button[type=submit]').click()
+    page.locator('#token-form .form-error').filter(has_text="Select at least one sender").wait_for()
+    page.locator('#token-form [name=senders][value="hello@example.com"]').check()
+    page.locator('#token-form [name=scopes][value=read]').check()
+    page.locator('#token-form [name=expiry]').select_option("custom")
+    expect(page.locator('#token-form [name=expires_days]')).to_be_visible()
+    page.locator('#token-form [name=expires_days]').fill("30")
+    page.locator('#token-form button[type=submit]').click()
+    page.locator('#reauth-dialog').wait_for(state="visible")
+    assert token_calls["creates"] == []
+    page.get_by_role("button", name="Cancel password confirmation").click()
+    page.locator('#token-form .form-error').filter(has_text="Change canceled").wait_for()
+    assert token_calls["attempts"] == 1 and token_calls["creates"] == []
+    page.locator('#token-form button[type=submit]').click()
+    page.locator('#reauth-form [name=password]').fill("KagNodePreview2026!")
+    page.locator('#reauth-form button[type=submit]').click()
+    page.get_by_role("heading", name="Token created", exact=True).wait_for()
+    assert token_calls["attempts"] == 3
+    page.unroute("**/api/account/reauth", token_reauth)
+    assert token_calls["creates"][0]["expires_days"] == 30
+    assert token_calls["creates"][0]["senders"] == ["hello@example.com"]
+    assert set(token_calls["creates"][0]["scopes"]) == {"read", "send"}
+    expect(page.locator('#token-secret')).to_have_value(fixture_secret)
+    assert fixture_secret not in page.evaluate("JSON.stringify({...localStorage,...sessionStorage})")
+    page.evaluate("() => { navigator.clipboard.writeText = async () => { throw new Error('Permission denied'); }; }")
+    page.get_by_role("button", name="Copy token", exact=True).click()
+    page.locator('#toast').filter(has_text="Copy the selected token.").wait_for()
+    assert page.locator('#token-secret').evaluate("e => e.selectionStart === 0 && e.selectionEnd === e.value.length")
+    page.get_by_role("button", name="Done", exact=True).click()
+    page.locator('#form-dialog').wait_for(state="hidden")
+    expect(page.locator('#token-secret')).to_have_count(0)
+    page.locator('[data-token-id="preview-token"]').get_by_role("button", name="Replace", exact=True).click()
+    expect(page.locator('#token-form [name=scopes][value=send]')).to_be_checked()
+    expect(page.locator('#token-form [name=senders][value="hello@example.com"]')).to_be_checked()
+    page.locator('#token-form [name=expiry]').select_option("never")
+    page.locator('#token-form button[type=submit]').click()
+    page.get_by_role("heading", name="Token created", exact=True).wait_for()
+    assert token_calls["creates"][1]["expires_days"] is None
+    assert token_calls["deletes"] == [], "Replacement must not revoke before confirmation"
+    page.get_by_role("button", name="Revoke old token", exact=True).click()
+    page.get_by_text("Old token revoked.", exact=True).wait_for()
+    assert token_calls["deletes"] == ["preview-token"]
+    expect(page.locator('#token-secret')).to_have_value(fixture_secret)
+    page.get_by_role("button", name="Done", exact=True).click()
+    page.locator('[data-token-id="preview-token"]').get_by_text("Revoked", exact=True).wait_for()
+    page.locator('[data-token-id="created-1"]').get_by_role("button", name="Revoke", exact=True).click()
+    page.get_by_role("button", name="Revoke token", exact=True).click()
+    page.locator('[data-token-id="created-1"]').get_by_text("Revoked", exact=True).wait_for()
+    page.locator('#toast').wait_for(state='hidden')
+    page.locator('#theme-toggle').click()
+    page.screenshot(path=str(OUT / "tokens-dark.png"), full_page=True)
+    assert page.locator('.token-card').first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(0, 0, 0)"
+    page.locator('#theme-toggle').click()
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.screenshot(path=str(OUT / "tokens-mobile.png"), full_page=True)
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Token mobile overflow"
+    page.get_by_role("button", name="Create token", exact=True).click()
+    page.locator('#token-form [name=scopes][value=send]').check()
+    assert page.locator('#form-dialog').evaluate("e => e.scrollWidth <= e.clientWidth"), "Token form overflow"
+    page.get_by_role("button", name="Close dialog", exact=True).click()
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    hostile_label = '<img src=x onerror="window.__token_xss=1">'
+    hostile_sender = '<svg onload="window.__token_xss=1">'
+    token_records.append({**token_records[0], "id": "hostile", "label": hostile_label,
+                          "senders": [hostile_sender]})
+    page.reload()
+    hostile_card = page.locator('[data-token-id="hostile"]')
+    hostile_card.get_by_role("heading", name=hostile_label, exact=True).wait_for()
+    assert hostile_card.locator("img,svg").count() == 0
+    assert hostile_sender in hostile_card.inner_text()
+    assert page.evaluate("window.__token_xss === undefined")
+    hostile_card.get_by_role("button", name="Replace", exact=True).click()
+    expect(page.locator('#token-form [name=label]')).to_have_value(hostile_label)
+    page.get_by_role("button", name="Close dialog", exact=True).click()
+    token_records.pop()
+    page.get_by_role("button", name="Create token", exact=True).click()
+    page.locator('#token-form [name=label]').fill("Navigation cleanup")
+    page.locator('#token-form [name=scopes][value=read]').check()
+    page.locator('#token-form button[type=submit]').click()
+    page.get_by_role("heading", name="Token created", exact=True).wait_for()
+    page.evaluate("location.hash = 'inbox'")
+    page.locator('#form-dialog').wait_for(state="hidden")
+    expect(page.locator('#token-secret')).to_have_count(0)
+    page.unroute("**/api/admin/tokens", token_api)
+    page.unroute("**/api/admin/tokens/*", token_api)
     page.locator('#mail-nav a[href="#inbox"]').click()
     page.locator(".message-row").first.click()
     page.locator(".message-body").wait_for()
@@ -153,6 +299,8 @@ with sync_playwright() as p:
     assert page.locator("#admin-nav-wrap").is_hidden()
     page.goto(URL + "/#users")
     page.wait_for_url("**/#inbox")
+    page.goto(URL + "/#tokens")
+    page.wait_for_url("**/#inbox")
     # Without an explicit preference the interface follows the operating system.
     page.evaluate("localStorage.removeItem('kagnode-theme')")
     page.emulate_media(color_scheme="dark")
@@ -164,5 +312,5 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
     print(
-        "Browser checks passed: branding, login, reading, send-as selector, demo write protection, people, permissions, admin password reconfirmation (cancel/failure/success), DNS, theme, mobile layout and navigation."
+        "Browser checks passed: branding, login, reading, send-as selector, demo write protection, people, permissions, admin password reconfirmation (cancel/failure/success), DNS, API token permissions and replacement/revocation, secret cleanup, theme, mobile layout and navigation."
     )

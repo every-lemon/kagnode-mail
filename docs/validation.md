@@ -1,33 +1,31 @@
 # Validation and release scope
 
-KagNode Mail 0.2.1 is implemented for native **Ubuntu Server 24.04**. It has no independently audited security certification, and external deliverability cannot be established without a real domain and provider-owned public IP.
+KagNode Mail 0.3.0 targets native **Ubuntu Server 24.04**. It has no independent security certification; external deliverability requires testing with a real domain and provider-owned public IP.
 
-## Interface update — 2026-10-30
-
-The 0.2.1 update changes theme CSS and browser chrome colors. The full browser suite passed again. Computed-color checks confirmed black page/panel/sidebar backgrounds, white primary/message text, unchanged `#2861EC` buttons/navigation/avatars, and no logo inversion. Backend and server configuration remain as validated below.
-
-## Backend and resource result — 2026-10-29
+## Release checks — 2026-10-30
 
 | Check | Result |
 | --- | --- |
-| Application/configuration regression suite | **69 passed**, using Ubuntu's Python, Flask and cryptography packages; disposable test databases on tmpfs |
-| Real mail integration | **Passed** with actual Ubuntu Postfix, Dovecot, OpenDKIM, nginx, Gunicorn and sender guard |
-| Desktop/mobile browser flows | **Passed**, including member permissions and HTML proxy-error handling |
-| Shellcheck, Python compilation and selected Ruff correctness checks | **Passed** |
-| systemd 255 static unit syntax validation | **Passed**, with generators/dependency recursion disabled in the minimal lab; runtime boot not tested |
-| Core services after two minutes idle | **81.1 MiB proportional resident memory (PSS)** |
-| CPU over the following 30-second idle sample | **No measurable service CPU ticks** |
-| Baseline APT installed-size estimate for the unchanged package set | **180 MB additional**, including test tools |
+| Application/configuration regression suite | **137 passed**, using Ubuntu's Python 3.12, Flask, and cryptography packages; test databases on private tmpfs |
+| Real mail integration | **Passed** with actual Ubuntu Postfix, Dovecot, OpenDKIM, nginx, Gunicorn, and sender guard |
+| Desktop/mobile browser flows | **Passed**, including token creation/replacement/revocation, permissions, reauthentication, and both themes |
+| Disposable real-backend browser smoke | **Passed** token creation, replacement, revocation, and one-time secret handling |
+| OpenAPI 3.1 validation | **Passed** with openapi-spec-validator 0.7.2 |
+| Shellcheck, Python compilation, selected Ruff correctness checks | **Passed** |
 
-The memory sample excludes the operating system, filesystem cache, measurement process, and **fail2ban**, which was installed but not running in the non-systemd lab. It used a small synthetic workload on an 8 GiB host; it is not a minimum VPS specification or a load-capacity guarantee. The default sender guard avoids loading the web framework, reducing its resident footprint.
+The token checks cover public SMTP/IMAP rejection of internal credentials, authenticated API sends and partial recipient refusals, folder search and reads without changing Seen, UIDVALIDITY mismatch rejection, multipart drafts and replacement, Bcc and attachment downloads, flags/moves/permanent deletion, per-token sender limits, revocation during SMTP DATA, and revoked API/private IMAP authentication. Tests sent no mail outside the isolated stack.
 
-See [machine-readable results and package versions](verification-results.json). The test network was isolated, and no test messages were sent to external recipients.
+The 0.3 core stack measured **82.2 MiB PSS** after the native/API workload and two minutes idle. A subsequent 30-second sample measured **0.033% of one CPU core**. This excludes the operating system, filesystem cache, measurement process, and fail2ban (not running in the non-systemd lab); it is not a minimum VPS specification or load-capacity guarantee. The unchanged package set previously had an APT estimate of 180 MB additional including test tools, excluding OS, mail storage, backups, and download caches. See [machine-readable results and package versions](verification-results.json).
+
+Static systemd unit syntax was validated previously on systemd 255 with generators/dependency recursion disabled; this isolated lab does not validate native systemd boot or fail2ban bans.
 
 ## Automated application checks
 
 The regression suite covers:
 
-- CSRF on login and mutations; Origin/Fetch Metadata checks; unauthenticated access rejection; admin/member separation.
+- Admin-issued token scope/expiry/revocation, password-reset and disablement triggers, current sender permissions, body limits, rate limits, and bearer/session separation.
+- Same-connection UIDVALIDITY checks, read-only API reads, and explicit accepted/uncertain send outcomes, including errors after SMTP acceptance.
+- CSRF on browser login and mutations; Origin/Fetch Metadata checks; unauthenticated access rejection; admin/member separation.
 - Host-scoped production cookies, five-session cap, administrator password freshness, bearer rotation, and fixed absolute session expiry.
 - Session revocation on logout, account disable, and password change; encrypted credentials and hashed tokens.
 - Last-admin preservation; invalid domains/quotas/passwords; mailbox/alias collisions.
@@ -38,11 +36,11 @@ The regression suite covers:
 - Generated TLS/relay/listener settings, hostile installer values, and non-mutating dry runs.
 - Admin-only public IP updates and resulting DNS instructions.
 
-Browser checks exercise the real interface against a disposable read-only preview: login, inbox and reader, approved From selection, blocked preview writes, account management, overview and account settings, permissions, cancelled/failed/successful admin password confirmation, DNS, system theme synchronization, mobile navigation/layout, and a regular user's hidden/denied administration views. Screenshots in `docs/screenshots` contain fictional preview messages.
+Browser checks exercise the real interface against a disposable read-only preview: login, inbox and reader, approved From selection, blocked preview writes, account management, overview and account settings, permissions, cancelled/failed/successful admin password confirmation, DNS, system theme synchronization, mobile navigation/layout, and a regular user's hidden/denied administration views. Token checks also cover injected labels/sender text, failed clipboard access, one-time secret removal, and cancelled/confirmed password reauthentication without duplicate token creation. Browser token fixtures are mocked for deterministic error paths; a separate disposable real-backend smoke checked issuance/replacement/revocation. Screenshots in `docs/screenshots` contain fictional data.
 
 ## Real mail integration
 
-`tests/lab-install.sh` provisions the same rendered configuration on a disposable Ubuntu 24.04 system with actual Ubuntu packages. `tests/integration.py` uses real Postfix, Dovecot, OpenDKIM, nginx, Gunicorn, and the sender guard; mail never leaves the local test stack.
+`tests/lab-install.sh` provisions the same rendered configuration on a disposable Ubuntu 24.04 system with actual Ubuntu packages. `tests/integration.py` and `tests/integration_api.py` use real Postfix, Dovecot, OpenDKIM, nginx, Gunicorn, and the sender guard; mail never leaves the local test stack.
 
 To reproduce with a development-only container:
 

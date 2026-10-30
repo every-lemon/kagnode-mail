@@ -10,6 +10,7 @@ const state = {
   messages: [],
   current: null,
   admin: null,
+  tokens: null,
   demo: false,
   generation: 0
 };
@@ -24,7 +25,8 @@ const folders = [
 const adminPages = [
   ['overview', 'Overview', 'shield'],
   ['users', 'People & access', 'users'],
-  ['domains', 'Domains & DNS', 'globe']
+  ['domains', 'Domains & DNS', 'globe'],
+  ['tokens', 'API tokens', 'key']
 ];
 
 function el(tag, attrs = {}, ...children) {
@@ -237,6 +239,7 @@ async function boot() {
       state.messages = [];
       state.current = null;
       state.admin = null;
+      state.tokens = null;
       state.generation++;
       for (const id of ['message-list', 'message-reader', 'admin-view', 'account-view']) document.getElementById(id).replaceChildren();
       $('#compose-form').reset();
@@ -251,6 +254,7 @@ async function boot() {
 async function route() {
   if (!state.user) return;
   const page = location.hash.slice(1) || 'inbox';
+  if (page !== 'tokens' && $('#token-secret')) $('#form-dialog').close();
   setSidebar(false);
   document.querySelectorAll('[data-page]').forEach(n => {
     const active = n.dataset.page === page;
@@ -277,14 +281,22 @@ async function route() {
     heading({
       overview: 'Overview',
       users: 'People & access',
-      domains: 'Domains & DNS'
+      domains: 'Domains & DNS',
+      tokens: 'API tokens'
     } [page]);
     $('#admin-view').replaceChildren(blank('Loading…'));
     try {
-      const data = await api('/admin');
-      if (!state.user?.admin) return;
-      state.admin = data;
-      renderAdmin(page);
+      if (page === 'tokens') {
+        const data = await api('/admin/tokens');
+        if (!state.user?.admin || location.hash !== '#tokens') return;
+        state.tokens = data;
+        renderTokens();
+      } else {
+        const data = await api('/admin');
+        if (!state.user?.admin || location.hash.slice(1) !== page) return;
+        state.admin = data;
+        renderAdmin(page);
+      }
     } catch (e) {
       $('#admin-view').replaceChildren(blank('Could not load settings.', e.message));
     }
@@ -606,6 +618,185 @@ function renderAdmin(page) {
   }
 }
 
+const tokenScopes = [
+  ['read', 'Read'], ['send', 'Send'], ['write', 'Write'], ['delete', 'Permanent delete']
+];
+
+function tokenDate(value, fallback) {
+  return value ? dateText(new Date(value * 1000), true) : fallback;
+}
+
+function renderTokens() {
+  const tokens = state.tokens.tokens;
+  const cards = tokens.map(t => {
+    const expired = t.expires && t.expires <= Date.now() / 1000;
+    const inactive = t.revoked || expired;
+    return el('article', {
+      class: 'token-card', 'data-token-id': t.id
+    }, el('div', { class: 'token-card-heading' }, el('div', {},
+      el('h3', {}, t.label), el('p', {}, t.email)),
+      el('span', { class: 'badge' + (inactive ? ' neutral' : '') },
+        t.revoked ? 'Revoked' : expired ? 'Expired' : 'Active')),
+    el('div', { class: 'token-scopes' }, ...tokenScopes.filter(([id]) => t.scopes.includes(id))
+      .map(([, label]) => el('span', { class: 'badge neutral' }, label))),
+    t.senders.length ? el('p', { class: 'token-senders' }, 'Send as: ' + t.senders.join(', ')) : null,
+    el('dl', { class: 'token-details' },
+      el('div', {}, el('dt', {}, 'Expires'), el('dd', {}, tokenDate(t.expires, 'Never'))),
+      el('div', {}, el('dt', {}, 'Last used'), el('dd', {}, tokenDate(t.last_used, 'Never')))),
+    el('div', { class: 'inline-actions token-actions' },
+      button('Replace', () => createToken(t), 'text-button'),
+      !t.revoked ? button('Revoke', () => revokeToken(t), 'text-button') : null));
+  });
+  $('#admin-view').replaceChildren(panel(tokens.length + (tokens.length === 1 ? ' token' : ' tokens'), null,
+    button('Create token', () => createToken(), 'button primary', 'plus'),
+    cards.length ? el('div', { class: 'token-grid' }, ...cards) :
+      el('p', { class: 'panel-note' }, 'No API tokens.')));
+}
+
+function revokeToken(token) {
+  formDialog('Revoke ' + token.label + '?', [el('p', { class: 'panel-note' },
+    'Stops this token immediately.')], 'Revoke token', async () => {
+    await api('/admin/tokens/' + encodeURIComponent(token.id), { method: 'DELETE' });
+  });
+}
+
+function createToken(previous = null) {
+  const users = state.tokens.users.filter(u => u.active);
+  if (!users.length) {
+    toast('Add an active mailbox first.', true);
+    return;
+  }
+  const userSelect = el('select', { name: 'user_id', required: true },
+    ...users.map(u => el('option', { value: u.id }, u.email)));
+  if (previous && !users.some(u => u.id === previous.user_id)) {
+    toast('Enable this mailbox before replacing its token.', true);
+    return;
+  }
+  if (previous) userSelect.value = String(previous.user_id);
+  const permissions = el('fieldset', { class: 'token-fieldset' }, el('legend', {}, 'Permissions'),
+    el('div', { class: 'token-scope-options' }, ...tokenScopes.map(([id, label]) =>
+      el('label', { class: 'checkbox-label' }, el('input', {
+        type: 'checkbox', name: 'scopes', value: id, checked: previous?.scopes.includes(id)
+      }), label))));
+  const senders = el('fieldset', { class: 'token-fieldset', hidden: true },
+    el('legend', {}, 'Send as'));
+  const senderOptions = el('div', { class: 'identity-list' });
+  senders.append(senderOptions);
+  const expiry = el('select', { name: 'expiry' },
+    el('option', { value: '90' }, '90 days'),
+    el('option', { value: 'custom' }, 'Custom'),
+    el('option', { value: 'never' }, 'Never'));
+  const days = field('Days', 'expires_days', 'number', '90', { min: 1, max: 365, required: true });
+  days.hidden = true;
+  $('input', days).disabled = true;
+  expiry.addEventListener('change', () => {
+    days.hidden = expiry.value !== 'custom';
+    $('input', days).disabled = days.hidden;
+  });
+  const form = el('form', { class: 'stack-form', id: 'token-form' },
+    field('Label', 'label', 'text', previous?.label || '', { required: true, maxlength: 80, autocomplete: 'off' }),
+    el('label', {}, 'Mailbox', userSelect), permissions,
+    el('p', { class: 'panel-note' }, 'Write includes Trash. Permanent deletion needs its own permission.'),
+    senders, el('label', {}, 'Expires', expiry), days);
+  const error = el('p', { class: 'form-error', role: 'alert' });
+  const submit = el('button', { type: 'submit', class: 'button primary' }, 'Create token');
+  form.append(error, submit);
+  function updateSenders(initial = false) {
+    const u = users.find(u => String(u.id) === userSelect.value);
+    senderOptions.replaceChildren(...(u?.identities || []).map(address =>
+      el('label', { class: 'checkbox-label' }, el('input', {
+        type: 'checkbox', name: 'senders', value: address,
+        checked: initial && previous?.senders.includes(address)
+      }), address)));
+  }
+  function updateScopeFields() {
+    senders.hidden = !form.querySelector('[name=scopes][value=send]').checked;
+    senders.disabled = senders.hidden;
+  }
+  userSelect.addEventListener('change', () => updateSenders());
+  permissions.addEventListener('change', updateScopeFields);
+  updateSenders(true);
+  updateScopeFields();
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    error.textContent = '';
+    const data = new FormData(form);
+    const scopes = data.getAll('scopes');
+    if (!scopes.length) {
+      error.textContent = 'Select at least one permission.';
+      return;
+    }
+    if (scopes.includes('send') && !data.getAll('senders').length) {
+      error.textContent = 'Select at least one sender address.';
+      return;
+    }
+    submit.disabled = true;
+    const dialogElement = $('#form-dialog');
+    const closeButton = $('#form-dialog button[aria-label="Close dialog"]');
+    closeButton.disabled = true;
+    const preventClose = event => event.preventDefault();
+    dialogElement.addEventListener('cancel', preventClose);
+    try {
+      const result = await api('/admin/tokens', { method: 'POST', body: {
+        label: data.get('label'), user_id: Number(data.get('user_id')), scopes,
+        senders: scopes.includes('send') ? data.getAll('senders') : [],
+        expires_days: expiry.value === 'never' ? null : expiry.value === 'custom' ? Number(data.get('expires_days')) : 90
+      } });
+      if (state.user?.admin) showTokenSecret(result, previous);
+    } catch (e) {
+      error.textContent = e.message;
+    } finally {
+      dialogElement.removeEventListener('cancel', preventClose);
+      closeButton.disabled = false;
+      submit.disabled = false;
+    }
+  });
+  dialog(previous ? 'Replace token' : 'Create token', form);
+}
+
+function showTokenSecret(result, previous) {
+  const secret = el('input', { id: 'token-secret', type: 'text', readonly: true,
+    autocomplete: 'off', spellcheck: 'false', 'aria-label': 'API token' });
+  secret.value = result.secret;
+  result.secret = '';
+  const close = () => $('#form-dialog').close();
+  const content = el('div', { class: 'dialog-body stack-form token-secret-view' },
+    el('p', { class: 'panel-note' }, 'Copy now. This token will not be shown again.'),
+    el('label', {}, 'API token', secret),
+    button('Copy token', async () => {
+      try {
+        await navigator.clipboard.writeText(secret.value);
+        toast('Copied.');
+      } catch {
+        secret.focus();
+        secret.select();
+        toast('Copy the selected token.', true);
+      }
+    }, 'button', 'copy'));
+  if (previous && !previous.revoked && (!previous.expires || previous.expires > Date.now() / 1000)) {
+    const status = el('p', { class: 'panel-note' }, 'The old token still works. Revoke it after updating your integration.');
+    const revoke = button('Revoke old token', ev => busy(ev.currentTarget, async () => {
+      await api('/admin/tokens/' + encodeURIComponent(previous.id), { method: 'DELETE' });
+      status.textContent = 'Old token revoked.';
+      revoke.remove();
+    }), 'button');
+    content.append(status, revoke);
+  }
+  content.append(button('Done', close, 'button primary'));
+  dialog('Token created', content);
+  const dialogElement = $('#form-dialog');
+  function clearSecret() {
+    secret.value = '';
+    content.replaceChildren();
+    window.removeEventListener('pagehide', clearSecret);
+  }
+  window.addEventListener('pagehide', clearSecret, { once: true });
+  dialogElement.addEventListener('close', () => {
+    clearSecret();
+    if (state.user?.admin && location.hash === '#tokens') route();
+  }, { once: true });
+}
+
 function createUser() {
   formDialog('Add account', [field('Display name', 'name', 'text', '', {
     required: true,
@@ -663,7 +854,7 @@ function editUser(u) {
     checked: !!u.active
   }), 'Active'), el('p', {
     class: 'panel-note'
-  }, 'Saving ends this user’s web sessions. Disabling preserves their mail.')], 'Save changes', async d => {
+  }, 'Saving ends web sessions. Password resets and disabling also revoke API tokens.')], 'Save changes', async d => {
     await api('/admin/users/' + u.id, {
       method: 'PATCH',
       body: {
@@ -800,7 +991,7 @@ function renderAccount() {
     class: 'panel-note'
   }, 'Mailbox quota: ' + u.quota_mb + ' MiB'), el('h3', {}, 'Send as'), ...state.identities.map(v => el('p', {
     class: 'panel-note'
-  }, v))), panel('Password', 'Changing your password ends all web sessions.', null, f)), panel('Mail clients', 'Sign in with your full email address and password.', null, table(['SERVICE', 'SERVER', 'PORT', 'SECURITY'], [el('tr', {}, el('td', {}, 'IMAP'), el('td', {}, state.hostname), el('td', {}, '993'), el('td', {}, 'SSL/TLS')), el('tr', {}, el('td', {}, 'SMTP'), el('td', {}, state.hostname), el('td', {}, '587'), el('td', {}, 'STARTTLS · authentication required'))])));
+  }, v))), panel('Password', 'Changing your password ends web sessions and revokes API tokens.', null, f)), panel('Mail clients', 'Sign in with your full email address and password.', null, table(['SERVICE', 'SERVER', 'PORT', 'SECURITY'], [el('tr', {}, el('td', {}, 'IMAP'), el('td', {}, state.hostname), el('td', {}, '993'), el('td', {}, 'SSL/TLS')), el('tr', {}, el('td', {}, 'SMTP'), el('td', {}, state.hostname), el('td', {}, '587'), el('td', {}, 'STARTTLS · authentication required'))])));
 }
 $('#login-form').addEventListener('submit', ev => {
   ev.preventDefault();

@@ -24,6 +24,20 @@ CREATE TABLE IF NOT EXISTS grants (
 CREATE TABLE IF NOT EXISTS sessions (
  token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  password TEXT NOT NULL, csrf TEXT NOT NULL, expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS api_tokens (
+ id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ label TEXT NOT NULL, token_hash TEXT UNIQUE NOT NULL, scopes TEXT NOT NULL,
+ senders TEXT NOT NULL, expires INTEGER, created INTEGER NOT NULL,
+ last_used INTEGER, revoked INTEGER, backend_password TEXT NOT NULL,
+ backend_hash TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS api_tokens_user ON api_tokens(user_id);
+CREATE TRIGGER IF NOT EXISTS revoke_api_tokens_on_account_change
+AFTER UPDATE OF password,active ON users
+WHEN NEW.password != OLD.password OR NEW.active = 0
+BEGIN
+ UPDATE api_tokens SET revoked=COALESCE(revoked,CAST(strftime('%s','now') AS INTEGER)),
+ backend_password='',backend_hash='' WHERE user_id=NEW.id;
+END;
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, count INTEGER NOT NULL, until INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires);
 CREATE INDEX IF NOT EXISTS throttle_expiry ON throttle(until);
@@ -51,6 +65,10 @@ def init(path):
 
 def domain(value):
     value = str(value).strip().lower()
+    if value == "api.invalid":
+        raise ValueError(
+            "The api.invalid domain is reserved for internal API authentication."
+        )
     if len(value) > 253 or not re.fullmatch(
         r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", value
     ):

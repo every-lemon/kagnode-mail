@@ -115,6 +115,7 @@ submission inet n      -       n       -       8       smtpd
   -o smtpd_milters=inet:127.0.0.1:8892,inet:127.0.0.1:8891
 127.0.0.1:1587 inet n  -       n       -       4       smtpd
   -o syslog_name=postfix/webmail
+  -o smtpd_sasl_service=kagnode-private
   -o smtpd_tls_security_level=none
   -o smtpd_tls_auth_only=no
   -o smtpd_sasl_auth_enable=yes
@@ -151,7 +152,7 @@ postlog   unix-dgram n  -       n       -       1       postlogd
         "domains": "SELECT name FROM domains WHERE name='%s'",
         "users": "SELECT email FROM users WHERE email='%s' AND active=1",
         "aliases": "SELECT a.destination FROM aliases a JOIN users u ON u.email=a.destination WHERE a.email='%s' AND u.active=1",
-        "senders": "SELECT owner FROM sender_owners WHERE email='%s'",
+        "senders": "SELECT owner FROM sender_owners WHERE email='%s' UNION SELECT 'api-' || t.id || '@api.invalid' FROM api_tokens t JOIN users u ON u.id=t.user_id JOIN sender_owners o ON o.owner=u.email WHERE o.email='%s' AND u.active=1 AND t.revoked IS NULL AND (t.expires IS NULL OR t.expires>CAST(strftime('%%s','now') AS INTEGER)) AND EXISTS (SELECT 1 FROM json_each(t.scopes) WHERE value='send') AND EXISTS (SELECT 1 FROM json_each(t.senders) WHERE value=o.email)",
     }
     for key, query in queries.items():
         files[f"etc/postfix/kagnode-{key}.cf"] = (
@@ -272,8 +273,11 @@ log_path = syslog
     files["etc/dovecot/kagnode-sql.conf.ext"] = f"""driver = sqlite
 connect = {database}
 default_pass_scheme = SHA512-CRYPT
-password_query = SELECT email AS user, password FROM users WHERE email='%u' AND active=1
-user_query = SELECT '/var/vmail/' || substr(email,instr(email,'@')+1) || '/' || substr(email,1,instr(email,'@')-1) AS home, {a.uid} AS uid, {a.gid} AS gid, '*:bytes=' || (quota_mb*1048576) AS quota_rule FROM users WHERE email='%u' AND active=1
+# Postfix does not pass lport to Dovecot. Only its private 1587 listener uses
+# service=kagnode-private. IMAP supplies lport; loopback public 993 still fails.
+# Keep token logins intact so the submission guard can recheck their restrictions.
+password_query = SELECT email AS user, password FROM users WHERE email='%u' AND active=1 AND email NOT GLOB 'api-*@api.invalid' UNION ALL SELECT 'api-' || t.id || '@api.invalid' AS user, t.backend_hash AS password FROM api_tokens t JOIN users u ON u.id=t.user_id WHERE 'api-' || t.id || '@api.invalid'='%u' AND u.active=1 AND t.revoked IS NULL AND (t.expires IS NULL OR t.expires>CAST(strftime('%%s','now') AS INTEGER)) AND '%l'='127.0.0.1' AND '%r'='127.0.0.1' AND (('%s'='imap' AND '%a'='1143') OR ('%s'='kagnode-private' AND EXISTS (SELECT 1 FROM json_each(t.scopes) WHERE value='send')))
+user_query = SELECT '/var/vmail/' || substr(email,instr(email,'@')+1) || '/' || substr(email,1,instr(email,'@')-1) AS home, {a.uid} AS uid, {a.gid} AS gid, '*:bytes=' || (quota_mb*1048576) AS quota_rule FROM users WHERE email='%u' AND active=1 AND email NOT GLOB 'api-*@api.invalid' UNION ALL SELECT '/var/vmail/' || substr(u.email,instr(u.email,'@')+1) || '/' || substr(u.email,1,instr(u.email,'@')-1) AS home, {a.uid} AS uid, {a.gid} AS gid, '*:bytes=' || (u.quota_mb*1048576) AS quota_rule FROM api_tokens t JOIN users u ON u.id=t.user_id WHERE 'api-' || t.id || '@api.invalid'='%u' AND u.active=1 AND t.revoked IS NULL AND (t.expires IS NULL OR t.expires>CAST(strftime('%%s','now') AS INTEGER)) AND '%s'='imap' AND '%a'='1143' AND '%l'='127.0.0.1' AND '%r'='127.0.0.1'
 iterate_query = SELECT email AS username FROM users WHERE active=1
 """
     files["etc/opendkim.conf"] = """Syslog yes

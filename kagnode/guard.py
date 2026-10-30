@@ -1,6 +1,8 @@
 """Fail-closed submission milter: bind the visible From to an authorized identity."""
 
+import json
 import os
+import re
 import sqlite3
 import time
 from contextlib import closing
@@ -20,13 +22,37 @@ def allowed_sender(path, login, envelope, headers):
     if visible != envelope.lower() or not login:
         return False
     with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)) as conn:
-        return (
-            conn.execute(
-                "SELECT 1 FROM sender_owners WHERE email=? AND owner=?",
-                (visible, login.lower()),
-            ).fetchone()
-            is not None
-        )
+        principal = sender_principal(conn, login, visible)
+        return principal is not None
+
+
+def sender_principal(conn, login, sender):
+    """Return the real mailbox owner only while this submission is authorized."""
+    login = login.lower()
+    match = re.fullmatch(r"api-([0-9a-f]{32})@api\.invalid", login)
+    if match:
+        token = conn.execute(
+            "SELECT u.email,t.scopes,t.senders FROM api_tokens t "
+            "JOIN users u ON u.id=t.user_id WHERE t.id=? AND u.active=1 "
+            "AND t.revoked IS NULL AND (t.expires IS NULL OR t.expires>?)",
+            (match[1], int(time.time())),
+        ).fetchone()
+        if (
+            not token
+            or "send" not in json.loads(token[1])
+            or sender not in json.loads(token[2])
+        ):
+            return None
+        owner = token[0]
+    elif login.startswith("api-") and login.endswith("@api.invalid"):
+        return None
+    else:
+        owner = login
+    if conn.execute(
+        "SELECT 1 FROM sender_owners WHERE email=? AND owner=?", (sender, owner)
+    ).fetchone():
+        return owner
+    return None
 
 
 def run():
@@ -83,16 +109,24 @@ def run():
                     return Milter.REJECT
                 # Native SMTP clients share a per-account hourly cap; no IP-only bypass.
                 with closing(sqlite3.connect(path, timeout=5)) as conn, conn:
+                    # Serialize revocation against this final authorization and quota check.
+                    conn.execute("BEGIN IMMEDIATE")
+                    owner = sender_principal(conn, self.login, self.envelope)
+                    if owner is None:
+                        self.setreply(
+                            "550", "5.7.1", "Sender permission is no longer active"
+                        )
+                        return Milter.REJECT
                     conn.execute(
                         "DELETE FROM throttle WHERE until < ?", (int(time.time()),)
                     )
                     conn.execute(
                         "INSERT INTO throttle VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1",
-                        ("smtp:" + self.login, int(time.time()) + 3600),
+                        ("smtp:" + owner, int(time.time()) + 3600),
                     )
                     count = conn.execute(
                         "SELECT count FROM throttle WHERE key=?",
-                        ("smtp:" + self.login,),
+                        ("smtp:" + owner,),
                     ).fetchone()[0]
                 if count > 60:
                     self.setreply(

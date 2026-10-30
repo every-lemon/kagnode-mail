@@ -308,3 +308,179 @@ def test_milter_rechecks_grant_after_message_body(app, monkeypatch):
         c.execute("DELETE FROM grants WHERE user_id=2")
     assert instance.eom() == fake.REJECT
     assert instance.reply[0] == "550"
+
+
+def test_stale_mailbox_rejected_before_read_or_write(monkeypatch):
+    from contextlib import contextmanager
+    from kagnode.mail import StaleMailbox
+
+    class IMAP:
+        def select(self, *args):
+            return "OK", []
+
+        def response(self, code):
+            assert code == "UIDVALIDITY"
+            return code, [b"555"]
+
+        def uid(self, *args):
+            pytest.fail("Stale reference reached a message command")
+
+    mail = Mail({})
+
+    @contextmanager
+    def imap(*args):
+        yield IMAP()
+
+    monkeypatch.setattr(mail, "imap", imap)
+    with pytest.raises(StaleMailbox):
+        mail.read(USER, "pw", "inbox", "12", uidvalidity="554", mark_seen=False)
+    with pytest.raises(StaleMailbox):
+        mail.action(USER, "pw", "inbox", "12", "trash", uidvalidity="554")
+    with pytest.raises(StaleMailbox):
+        mail.attachment(USER, "pw", "inbox", "12", "original", uidvalidity="554")
+    message, _, _ = build_message({}, USER, [USER["email"]], draft=True)
+    with pytest.raises(StaleMailbox):
+        mail.draft(USER, "pw", message, "12", uidvalidity="554")
+
+
+def test_api_read_never_marks_message_seen(monkeypatch):
+    from contextlib import contextmanager
+    from email.message import EmailMessage
+
+    class IMAP:
+        def select(self, folder, readonly):
+            assert readonly
+            return "OK", []
+
+        def response(self, code):
+            return code, [b"555"]
+
+        def uid(self, *args):
+            pytest.fail("Read-only call attempted to update flags")
+
+    mail = Mail({})
+
+    @contextmanager
+    def imap(*args):
+        yield IMAP()
+
+    msg = EmailMessage()
+    msg.set_content("Unseen message")
+    monkeypatch.setattr(mail, "imap", imap)
+    monkeypatch.setattr(mail, "raw", lambda *args: msg)
+    result = mail.read(USER, "pw", "inbox", "12", uidvalidity="555", mark_seen=False)
+    assert result["uidvalidity"] == "555"
+    assert result["folder"] == "inbox"
+
+
+def test_missing_message_action_is_not_silent_success(monkeypatch):
+    from contextlib import contextmanager
+    from kagnode.mail import MessageNotFound
+
+    class IMAP:
+        def select(self, *args):
+            return "OK", []
+
+        def response(self, code):
+            return code, [b"555"]
+
+        def uid(self, *args):
+            assert args == ("FETCH", "12", "(UID)")
+            return "OK", [None]
+
+    mail = Mail({})
+
+    @contextmanager
+    def imap(*args):
+        yield IMAP()
+
+    monkeypatch.setattr(mail, "imap", imap)
+    with pytest.raises(MessageNotFound):
+        mail.action(USER, "pw", "inbox", "12", "trash", uidvalidity="555")
+
+
+@pytest.mark.parametrize("failure", ["submission", "quit", "quit_rejected", "login"])
+def test_send_disconnect_outcome_is_explicit(monkeypatch, failure):
+    import smtplib
+    from kagnode.mail import SendUncertain
+
+    class SMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            if failure == "quit":
+                raise smtplib.SMTPServerDisconnected("quit lost")
+            if failure == "quit_rejected":
+                raise smtplib.SMTPResponseException(500, b"quit rejected")
+
+        def login(self, username, password):
+            assert username == "api-test@api.invalid"
+            if failure == "login":
+                raise smtplib.SMTPServerDisconnected("login lost")
+
+        def send_message(self, *args, **kwargs):
+            if failure == "submission":
+                raise smtplib.SMTPServerDisconnected("submission lost")
+            return {"refused@example.org": (550, b"rejected")}
+
+    monkeypatch.setattr("kagnode.mail.smtplib.SMTP", SMTP)
+    mail = Mail({"SMTP_HOST": "127.0.0.1", "SMTP_PORT": 1587})
+
+    def fail(*args):
+        raise OSError("IMAP unavailable")
+
+    monkeypatch.setattr(mail, "imap", fail)
+    msg, sender, targets = build_message(
+        {"to": "one@example.org"}, USER, [USER["email"]]
+    )
+    user = dict(USER, auth_username="api-test@api.invalid")
+    if failure == "submission":
+        with pytest.raises(SendUncertain):
+            mail.send(user, "pw", msg, sender, targets)
+    elif failure == "login":
+        with pytest.raises(smtplib.SMTPServerDisconnected):
+            mail.send(user, "pw", msg, sender, targets)
+    else:
+        result = mail.send(user, "pw", msg, sender, targets)
+        assert result["status"] == "accepted"
+        assert result["message_id"] == msg["Message-ID"]
+        assert result["refused"] == ["refused@example.org"]
+        assert "Do not resend" in result["warning"]
+
+
+def test_saved_draft_reports_success_if_old_copy_removal_disconnects(monkeypatch):
+    from contextlib import contextmanager
+
+    class IMAP:
+        capabilities = ("UIDPLUS",)
+
+        def select(self, *args):
+            return "OK", []
+
+        def response(self, code):
+            return code, [b"555"]
+
+        def append(self, *args):
+            return "OK", [b"[APPENDUID 555 13] Appended"]
+
+        def uid(self, command, *args):
+            if command == "FETCH":
+                return "OK", [b"1 (UID 12)"]
+            raise OSError("Connection lost after saving the new draft")
+
+    mail = Mail({})
+
+    @contextmanager
+    def imap(*args):
+        yield IMAP()
+
+    monkeypatch.setattr(mail, "imap", imap)
+    msg, _, _ = build_message({}, USER, [USER["email"]], draft=True)
+    result = mail.draft(USER, "pw", msg, replace_uid="12", uidvalidity="555")
+    assert result["uid"] == "13"
+    assert result["uidvalidity"] == "555"
+    assert result["warning"].startswith("Draft saved,")

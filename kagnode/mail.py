@@ -26,6 +26,18 @@ MAX_ATTACHMENTS = 20
 MAX_MIME_PARTS = 200
 
 
+class StaleMailbox(ValueError):
+    """The mailbox generation changed; callers must list messages again."""
+
+
+class MessageNotFound(ValueError):
+    """The requested UID does not exist in the selected mailbox."""
+
+
+class SendUncertain(OSError):
+    """The SMTP connection failed while submitting; retry may duplicate mail."""
+
+
 def safe_filename(value):
     """Treat names from received mail as untrusted download metadata."""
     name = str(value or "attachment").replace("\\", "/").split("/")[-1]
@@ -174,7 +186,7 @@ class Mail:
             self.config["IMAP_HOST"], self.config["IMAP_PORT"], timeout=15
         )
         try:
-            client.login(user["email"], password)
+            client.login(dict(user).get("auth_username", user["email"]), password)
             status, capabilities = client.capability()
             if status != "OK":
                 raise imaplib.IMAP4.error(
@@ -202,6 +214,7 @@ class Mail:
     def list(self, user, password, folder, page=1, search=""):
         with self.imap(user, password) as c:
             self.select(c, folder, True)
+            validity = self.uidvalidity(c)
             # Search is a quoted IMAP string; never interpolate raw protocol input.
             criteria = (
                 ("TEXT", '"' + search.replace("\\", "\\\\").replace('"', '\\"') + '"')
@@ -247,14 +260,38 @@ class Mail:
                 total=len(uids),
                 page=page,
                 pages=max(1, (len(uids) + 29) // 30),
+                folder=folder,
+                uidvalidity=validity,
             )
+
+    def uidvalidity(self, client, expected=None):
+        _, values = client.response("UIDVALIDITY")
+        value = values[0].decode("ascii") if values and values[0] else ""
+        if not re.fullmatch(r"[1-9][0-9]{0,9}", value):
+            raise ValueError("Mail server did not provide a valid UIDVALIDITY.")
+        if expected is not None and str(expected) != value:
+            raise StaleMailbox(
+                "Mailbox changed. List messages again before continuing."
+            )
+        return value
+
+    def require_message(self, client, uid):
+        if not re.fullmatch(r"[1-9][0-9]{0,9}", str(uid)):
+            raise ValueError("Invalid message identifier.")
+        status, rows = client.uid("FETCH", str(uid), "(UID)")
+        if status != "OK" or not any(
+            isinstance(row, bytes)
+            and re.search(rb"UID " + str(uid).encode() + rb"\b", row)
+            for row in (rows or [])
+        ):
+            raise MessageNotFound("Message no longer exists.")
 
     def raw(self, c, uid):
         if not re.fullmatch(r"[1-9][0-9]{0,9}", str(uid)):
             raise ValueError("Invalid message identifier.")
         status, rows = c.uid("FETCH", str(uid), "(RFC822.SIZE)")
         if status != "OK" or not rows or not rows[0]:
-            raise ValueError("Message no longer exists.")
+            raise MessageNotFound("Message no longer exists.")
         meta = rows[0][0] if isinstance(rows[0], tuple) else rows[0]
         size = re.search(rb"RFC822.SIZE (\d+)", meta)
         if not size or int(size[1]) > MAX_MESSAGE:
@@ -265,13 +302,16 @@ class Mail:
         for row in rows:
             if isinstance(row, tuple):
                 return parse_message(row[1])
-        raise ValueError("Message no longer exists.")
+        raise MessageNotFound("Message no longer exists.")
 
-    def read(self, user, password, folder, uid):
+    def read(self, user, password, folder, uid, uidvalidity=None, mark_seen=True):
         with self.imap(user, password) as c:
-            self.select(c, folder)
+            self.select(c, folder, not mark_seen)
+            if uidvalidity is not None:
+                self.uidvalidity(c, uidvalidity)
             msg = self.raw(c, uid)
-            c.uid("STORE", str(uid), "+FLAGS.SILENT", "(\\Seen)")
+            if mark_seen:
+                c.uid("STORE", str(uid), "+FLAGS.SILENT", "(\\Seen)")
             attachments = []
             for i, part in enumerate(msg.walk()):
                 if (
@@ -291,11 +331,15 @@ class Mail:
                 date=str(msg.get("Date", "")),
                 body=message_text(msg),
                 attachments=attachments,
+                folder=folder,
+                uidvalidity=str(uidvalidity) if uidvalidity is not None else None,
             )
 
-    def attachment(self, user, password, folder, uid, index):
+    def attachment(self, user, password, folder, uid, index, uidvalidity=None):
         with self.imap(user, password) as c:
             self.select(c, folder, True)
+            if uidvalidity is not None:
+                self.uidvalidity(c, uidvalidity)
             msg = self.raw(c, uid)
             if index == "original":
                 return msg.as_bytes(), "message.eml"
@@ -318,11 +362,14 @@ class Mail:
                 raw = part.as_bytes()
             return raw or b"", safe_filename(part.get_filename())
 
-    def action(self, user, password, folder, uid, action):
+    def action(self, user, password, folder, uid, action, uidvalidity=None):
         if not re.fullmatch(r"[1-9][0-9]{0,9}", str(uid)):
             raise ValueError("Invalid message identifier.")
         with self.imap(user, password) as c:
             self.select(c, folder)
+            if uidvalidity is not None:
+                self.uidvalidity(c, uidvalidity)
+                self.require_message(c, uid)
             if action in ("read", "unread", "star", "unstar"):
                 flag = "\\Seen" if action in ("read", "unread") else "\\Flagged"
                 result = c.uid(
@@ -347,12 +394,17 @@ class Mail:
             if result[0] != "OK":
                 raise ValueError("Message action failed.")
 
-    def draft(self, user, password, msg, replace_uid=None):
+    def draft(self, user, password, msg, replace_uid=None, uidvalidity=None):
         if replace_uid and not re.fullmatch(r"[1-9][0-9]{0,9}", str(replace_uid)):
             raise ValueError("Invalid draft identifier.")
         with self.imap(user, password) as c:
             self.select(c, "drafts")
-            status, _ = c.append(
+            validity = self.uidvalidity(c, uidvalidity)
+            if replace_uid:
+                self.require_message(c, replace_uid)
+                if "UIDPLUS" not in c.capabilities:
+                    raise ValueError("The mail server must support UIDPLUS.")
+            status, response = c.append(
                 "Drafts",
                 "\\Draft",
                 imaplib.Time2Internaldate(time.time()),
@@ -360,16 +412,46 @@ class Mail:
             )
             if status != "OK":
                 raise ValueError("Could not save draft.")
-            if replace_uid and "UIDPLUS" in c.capabilities:
-                c.uid("STORE", str(replace_uid), "+FLAGS.SILENT", "(\\Deleted)")
-                c.uid("EXPUNGE", str(replace_uid))
+            warning = None
+            if replace_uid:
+                try:
+                    result = c.uid(
+                        "STORE", str(replace_uid), "+FLAGS.SILENT", "(\\Deleted)"
+                    )
+                    if (
+                        result[0] != "OK"
+                        or c.uid("EXPUNGE", str(replace_uid))[0] != "OK"
+                    ):
+                        raise ValueError("Previous draft removal failed")
+                except (OSError, imaplib.IMAP4.error, ValueError):
+                    warning = "Draft saved, but the previous copy could not be removed."
+            match = re.search(rb"APPENDUID (\d+) (\d+)", b" ".join(response or []))
+            return dict(
+                folder="drafts",
+                uidvalidity=validity,
+                uid=match[2].decode() if match else None,
+                warning=warning,
+            )
 
     def send(self, user, password, msg, sender, recipients):
-        with smtplib.SMTP(
-            self.config["SMTP_HOST"], self.config["SMTP_PORT"], timeout=25
-        ) as s:
-            s.login(user["email"], password)
-            refused = s.send_message(msg, from_addr=sender, to_addrs=recipients)
+        attempted, accepted = False, False
+        try:
+            with smtplib.SMTP(
+                self.config["SMTP_HOST"], self.config["SMTP_PORT"], timeout=25
+            ) as s:
+                s.login(dict(user).get("auth_username", user["email"]), password)
+                attempted = True
+                refused = s.send_message(msg, from_addr=sender, to_addrs=recipients)
+                accepted = True
+        except (OSError, smtplib.SMTPException) as exc:
+            if not accepted:
+                if attempted and isinstance(
+                    exc, (OSError, smtplib.SMTPServerDisconnected)
+                ):
+                    raise SendUncertain(
+                        "Submission outcome is unknown. Check delivery before retrying."
+                    ) from exc
+                raise
         warning = None
         if getattr(msg, "_kagnode_bcc", None):
             msg["Bcc"] = ", ".join(msg._kagnode_bcc)
@@ -387,5 +469,9 @@ class Mail:
         except (OSError, imaplib.IMAP4.error, ValueError):
             warning = "Mail was accepted for delivery, but a Sent copy could not be saved. Do not resend."
         return dict(
-            message="Accepted for delivery", warning=warning, refused=list(refused)
+            message="Accepted for delivery",
+            status="accepted",
+            message_id=str(msg["Message-ID"]),
+            warning=warning,
+            refused=list(refused),
         )

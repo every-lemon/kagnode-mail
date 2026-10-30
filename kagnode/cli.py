@@ -151,6 +151,16 @@ def main():
                 conn.execute(
                     "DELETE FROM throttle WHERE until < ?", (int(time.time()),)
                 )
+                now = int(time.time())
+                conn.execute(
+                    "UPDATE api_tokens SET backend_password='',backend_hash='' "
+                    "WHERE revoked IS NOT NULL OR (expires IS NOT NULL AND expires<=?)",
+                    (now,),
+                )
+                conn.execute(
+                    "DELETE FROM api_tokens WHERE COALESCE(revoked,expires,?)<?",
+                    (now, now - 90 * 86400),
+                )
             else:
                 u = conn.execute(
                     "SELECT id FROM users WHERE email=?", (email,)
@@ -164,7 +174,7 @@ def main():
                 conn.execute("DELETE FROM sessions WHERE user_id=?", (u[0],))
                 db.audit(conn, "local administrator", "password.reset", email)
                 print(
-                    "Password reset. Web sessions revoked. Disconnect existing native IMAP and SMTP sessions if immediate revocation is required."
+                    "Password reset. Web sessions and API tokens revoked. Disconnect existing native IMAP and SMTP sessions if immediate revocation is required."
                 )
 
 

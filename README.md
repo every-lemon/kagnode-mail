@@ -8,12 +8,13 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.2.1 release**. Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **0.3.0 release**. Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
 - KagNode blue branding with the supplied logo recreated as a small SVG, responsive webmail, system-synced light/dark themes with unchanged KagNode blue, search, pagination, reading, reply, forwarding, attachments, drafts, stars, archive, junk, and trash.
 - Safe message rendering: plain text, with readable text extracted from HTML-only mail. No remote tracking images, scripts, or HTML execution.
+- Admin-issued API tokens for mailbox reading, sending, drafts, and message management. Separate permissions, restricted senders, expiry, and immediate revocation. See the [API guide](docs/api.md).
 - Regular members and administrators. Administrators have a normal mailbox too.
 - Account creation, disabling, password reset/change, mailbox quotas, and multiple domains.
 - Receiving aliases and explicit **send-as grants**, managed separately. Every member can send as their own address; extra identities require an administrator's grant.
@@ -44,8 +45,8 @@ Use a **fresh, dedicated server** with a static public IPv4 address. A 1 GiB VPS
 3. Download the source and review the configuration:
 
    ```bash
-   git clone https://github.com/every-lemon/kagnode-mail.git
-   cd kagnode-mail
+   git clone https://github.com/every-lemon/mail.git
+   cd mail
    ./install.sh --dry-run --domain example.com --hostname mail.example.com \
      --ipv4 203.0.113.10 --admin admin@example.com --output ./review
    ```
@@ -83,13 +84,13 @@ POP3 and port 465 are intentionally not enabled. This release accepts ASCII doma
 
 There is one Gunicorn worker with two threads, demand-started Dovecot processes, bounded Postfix concurrency, and no persistent web polling or mail indexing daemon. Package installation uses `--no-install-recommends` and Ubuntu's maintained Python packages rather than a second production virtual environment.
 
-**Measured core idle footprint: 81.1 MiB PSS** after two minutes idle in the Ubuntu 24.04 lab, excluding the OS, filesystem cache, and fail2ban. No CPU ticks were observed in a subsequent 30-second sample. A universal RAM/idle/disk claim would be misleading. Use `sudo python3 scripts/resources.py` to measure proportional resident memory on your server, `systemd-cgtop` for CPU, and `du -sh /opt/kagnode /var/lib/kagnode /var/vmail` for application/data size. See [validation](docs/validation.md) for measured results and their scope. The web service has a 384 MiB hard memory cap; the sender guard has 128 MiB. These caps are ceilings, not idle estimates.
+**Measured core idle footprint: 82.2 MiB PSS** after two minutes idle in the Ubuntu 24.04 lab, excluding the OS, filesystem cache, and fail2ban. The following 30-second sample measured 0.033% of one CPU core. A universal RAM/idle/disk claim would be misleading. Use `sudo python3 scripts/resources.py` to measure proportional resident memory on your server, `systemd-cgtop` for CPU, and `du -sh /opt/kagnode /var/lib/kagnode /var/vmail` for application/data size. See [validation](docs/validation.md) for measured results and their scope. The web service has a 384 MiB hard memory cap; the sender guard has 128 MiB. These caps are ceilings, not idle estimates.
 
 The small default stack **does not include a content spam filter or antivirus engine**. Junk is a manual folder. OpenDKIM signs outgoing mail; it is not an inbound spam/DMARC enforcement system. Read [security](SECURITY.md) before deciding whether to add filtering or move beyond a small trusted team.
 
 ## Source and downloads
 
-[Repository](https://github.com/every-lemon/kagnode-mail) · [Releases](https://github.com/every-lemon/kagnode-mail/releases) · [Report a vulnerability privately](https://github.com/every-lemon/kagnode-mail/security/advisories/new)
+[Repository](https://github.com/every-lemon/mail) · [Releases](https://github.com/every-lemon/mail/releases) · [Report a vulnerability privately](https://github.com/every-lemon/mail/security/advisories/new)
 
 ## Development and checks
 
@@ -103,6 +104,7 @@ shellcheck install.sh scripts/*.sh tests/*.sh
 
 The [GitHub Actions workflow](.github/workflows/test.yml) includes Python/shell tests and a disposable Ubuntu 24.04 mail integration test. Test containers are a development tool; production is native systemd.
 
+- [Token API and examples](docs/api.md) · [OpenAPI specification](docs/openapi.json)
 - [DNS and deliverability](docs/dns.md)
 - [Architecture and permission model](docs/architecture.md)
 - [Operations, backups, upgrades, and recovery](docs/operations.md)

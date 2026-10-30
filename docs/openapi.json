@@ -1,0 +1,841 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KagNode Mail API",
+    "version": "0.3.0",
+    "description": "Server/script API. Admin-issued tokens are restricted to one mailbox and explicit permissions. HTTPS required; no browser-origin requests or CORS. 120 requests per minute per token; 60 sends per hour per mailbox across web/API; native SMTP guard also enforces mailbox quota. Tokens are revoked on password changes/resets or account disablement. See api.md for lifecycle and examples.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{hostname}/api/v1",
+      "variables": {
+        "hostname": {
+          "default": "mail.example.com",
+          "description": "Your configured mail hostname"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/folders": {
+      "get": {
+        "operationId": "listFolders",
+        "summary": "List the fixed mailbox folders",
+        "description": "Required permission: read.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Folder"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        }
+      }
+    },
+    "/messages": {
+      "get": {
+        "operationId": "listMessages",
+        "summary": "List or search messages; 30 per page",
+        "description": "Required permission: read.",
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inbox",
+                "sent",
+                "drafts",
+                "archive",
+                "trash",
+                "junk"
+              ],
+              "default": "inbox"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "ASCII search text"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        }
+      }
+    },
+    "/messages/{uid}": {
+      "get": {
+        "operationId": "readMessage",
+        "summary": "Read a message without marking it seen",
+        "description": "Required permission: read.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,9}$"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inbox",
+                "sent",
+                "drafts",
+                "archive",
+                "trash",
+                "junk"
+              ],
+              "default": "inbox"
+            }
+          },
+          {
+            "name": "uidvalidity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,9}$",
+              "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        }
+      }
+    },
+    "/messages/{uid}/attachments/{index}": {
+      "get": {
+        "operationId": "downloadAttachment",
+        "summary": "Download an attachment or original message",
+        "description": "Required permission: read.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,9}$"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(original|[0-9]+)$"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inbox",
+                "sent",
+                "drafts",
+                "archive",
+                "trash",
+                "junk"
+              ],
+              "default": "inbox"
+            }
+          },
+          {
+            "name": "uidvalidity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,9}$",
+              "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Downloaded attachment; Content-Disposition uses a sanitized filename.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        }
+      }
+    },
+    "/messages/{uid}/action": {
+      "post": {
+        "operationId": "messageAction",
+        "summary": "Update flags, move, or permanently delete a message",
+        "description": "Required permission: write; delete instead for action=delete, which requires folder=trash.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,9}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Success"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/send": {
+      "post": {
+        "operationId": "sendMessage",
+        "summary": "Submit a message to the local SMTP queue",
+        "description": "Required permission: send. At least one recipient is required. 202 means accepted for delivery, not delivered. Inspect refused recipients and warning. Never automatically retry an ambiguous failure: send_uncertain includes do_not_retry=true. No idempotency-key support. Maximum 50 recipients, 20 attachments, 16 MiB attachment bytes, 25 MiB encoded message; JSON requests 2 MiB, multipart 24 MiB.",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SendInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "attachments": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                          "type": "string",
+                          "format": "binary"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drafts": {
+      "post": {
+        "operationId": "saveDraft",
+        "summary": "Save or replace a draft",
+        "description": "Required permission: write. Recipients may be empty. draft_uid requires uidvalidity and replaces an existing draft; inspect warning. Returned uid may be null if the IMAP server omits APPENDUID.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/APIError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DraftInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "attachments": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                          "type": "string",
+                          "format": "binary"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The admin-issued one-time secret. Never send in a URL."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "do_not_retry": {
+                "type": "boolean"
+              },
+              "retry_after": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Folder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "inbox",
+              "sent",
+              "drafts",
+              "archive",
+              "trash",
+              "junk"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "MessageSummary": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "uid",
+          "sender",
+          "to",
+          "subject",
+          "date",
+          "unread",
+          "starred"
+        ]
+      },
+      "MessageList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageSummary"
+            }
+          },
+          "folder": {
+            "type": "string",
+            "enum": [
+              "inbox",
+              "sent",
+              "drafts",
+              "archive",
+              "trash",
+              "junk"
+            ]
+          },
+          "uidvalidity": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,9}$",
+            "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pages": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "folder",
+          "uidvalidity",
+          "total",
+          "page",
+          "pages"
+        ]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "cc": {
+            "type": "string"
+          },
+          "bcc": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string",
+            "enum": [
+              "inbox",
+              "sent",
+              "drafts",
+              "archive",
+              "trash",
+              "junk"
+            ]
+          },
+          "uidvalidity": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,9}$",
+            "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "uid",
+          "folder",
+          "uidvalidity",
+          "sender",
+          "to",
+          "cc",
+          "bcc",
+          "subject",
+          "date",
+          "body",
+          "attachments"
+        ]
+      },
+      "SendInput": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Defaults to the mailbox address; must be explicitly allowed on the token and currently allowed for the mailbox."
+          },
+          "to": {
+            "type": "string"
+          },
+          "cc": {
+            "type": "string"
+          },
+          "bcc": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "One line."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 1048576,
+            "description": "Plain text; at most 1 MiB encoded UTF-8."
+          }
+        }
+      },
+      "SendResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "accepted"
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "refused": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "message_id",
+          "refused",
+          "warning"
+        ]
+      },
+      "DraftInput": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Defaults to the mailbox address; must be explicitly allowed on the token and currently allowed for the mailbox."
+          },
+          "to": {
+            "type": "string"
+          },
+          "cc": {
+            "type": "string"
+          },
+          "bcc": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "One line."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 1048576,
+            "description": "Plain text; at most 1 MiB encoded UTF-8."
+          },
+          "draft_uid": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,9}$"
+          },
+          "uidvalidity": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,9}$",
+            "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+          }
+        }
+      },
+      "DraftResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "folder": {
+            "const": "drafts"
+          },
+          "uid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uidvalidity": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,9}$",
+            "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "folder",
+          "uid",
+          "uidvalidity",
+          "warning"
+        ]
+      },
+      "ActionInput": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "type": "string",
+            "enum": [
+              "inbox",
+              "sent",
+              "drafts",
+              "archive",
+              "trash",
+              "junk"
+            ]
+          },
+          "uidvalidity": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,9}$",
+            "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "read",
+              "unread",
+              "star",
+              "unstar",
+              "archive",
+              "trash",
+              "inbox",
+              "junk",
+              "delete"
+            ]
+          }
+        },
+        "required": [
+          "folder",
+          "uidvalidity",
+          "action"
+        ]
+      },
+      "Success": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      }
+    },
+    "responses": {
+      "APIError": {
+        "description": "Structured error. Common statuses: 400 invalid_request, 401 invalid_token, 403 insufficient_scope/forbidden/browser_access_denied/https_required, 404 message_not_found, 409 stale_mailbox, 413 http_413, 422 recipients_refused, 429 rate_limited/send_rate_limited, 502 send_uncertain/mail_unavailable.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait after a 429.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          "WWW-Authenticate": {
+            "description": "Bearer challenge on a 401.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}
