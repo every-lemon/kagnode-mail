@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-10-30
+
+Changed dark mode to black backgrounds and white primary text. KagNode blue (`#2861EC`) and its hover color now remain the same in both themes. Removed navy surfaces and lighter dark-mode blue overrides. Browser flows and computed light/dark colors verified.
+
 ## 0.2.0 — 2026-10-29
 
 Renamed the project, package, installer paths, and services to **KagNode Mail**. Recreated the supplied KagNode mark as a lightweight SVG and redesigned the interface around its blue, with white/ink themes, system theme synchronization, and improved mobile navigation. Removed slogans, promotional panels, decorative labels, and repetitive copy from all interface views.

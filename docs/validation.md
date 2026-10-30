@@ -1,8 +1,12 @@
 # Validation and release scope
 
-KagNode Mail 0.2.0 is implemented for native **Ubuntu Server 24.04**. It has no independently audited security certification, and external deliverability cannot be established without a real domain and provider-owned public IP.
+KagNode Mail 0.2.1 is implemented for native **Ubuntu Server 24.04**. It has no independently audited security certification, and external deliverability cannot be established without a real domain and provider-owned public IP.
 
-## Recorded result — 2026-10-29
+## Interface update — 2026-10-30
+
+The 0.2.1 update changes theme CSS and browser chrome colors. The full browser suite passed again. Computed-color checks confirmed black page/panel/sidebar backgrounds, white primary/message text, unchanged `#2861EC` buttons/navigation/avatars, and no logo inversion. Backend and server configuration remain as validated below.
+
+## Backend and resource result — 2026-10-29
 
 | Check | Result |
 | --- | --- |

@@ -307,7 +307,7 @@ nav {
 
 .nav-item.active {
   background: #eaf0ff;
-  color: #2458cf;
+  color: var(--accent);
   font-weight: 650
 }
 
@@ -347,7 +347,7 @@ nav {
   height: 36px;
   border-radius: 50%;
   background: #e8efff;
-  color: #3c62a8;
+  color: var(--accent);
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0
@@ -531,7 +531,7 @@ kbd {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #2861ec
+  background: var(--accent)
 }
 
 .row-top {
@@ -764,7 +764,7 @@ kbd {
 }
 
 .empty-state .empty-art {
-  color: #6b8ed8;
+  color: var(--accent);
   font-size: 58px;
   margin-bottom: 15px
 }
@@ -1148,7 +1148,7 @@ dialog {
 }
 
 dialog::backdrop {
-  background: #101b3266;
+  background: #00000066;
   backdrop-filter: blur(4px)
 }
 
@@ -1281,36 +1281,40 @@ dialog::backdrop {
   display: none
 }
 
+/* Dark mode changes neutral colors; brand blue is inherited unchanged. */
 [data-theme=dark] {
-  --bg: #0c1423;
-  --paper: #111d30;
-  --side: #101a2a;
-  --ink: #e9effa;
-  --muted: #9cabc1;
-  --line: #24324a;
-  --accent: #4d7cff;
-  --accent-hover: #658eff;
-  --soft: #192e53;
+  --bg: #000000;
+  --paper: #000000;
+  --side: #000000;
+  --ink: #ffffff;
+  --muted: #b3b3b3;
+  --line: #292929;
+  --soft: #111111;
   --green: #78cfb0;
-  --green-soft: #1b3532;
+  --green-soft: #111111;
+  --shadow: 0 18px 70px #00000066;
   color-scheme: dark
 }
 
 [data-theme=dark] .nav-item.active,
-[data-theme=dark] .message-row.selected {
-  background: #192e53;
-  color: #dce7ff
+[data-theme=dark] .message-row.selected,
+[data-theme=dark] .nav-count,
+[data-theme=dark] .avatar {
+  background: var(--soft)
 }
 
-[data-theme=dark] .message-body {
-  color: #bac8dd
-}
-
+[data-theme=dark] .message-body,
+[data-theme=dark] .message-row.selected,
 [data-theme=dark] .nav-item {
-  color: #a4b3ca
+  color: var(--ink)
 }
 
-[data-theme=dark] .notice {
+[data-theme=dark] .nav-item.active {
+  color: var(--accent)
+}
+
+[data-theme=dark] .notice,
+[data-theme=dark] .notice.warning {
   border-color: var(--line)
 }
 
@@ -1605,7 +1609,7 @@ dialog::backdrop {
   position: fixed;
   inset: 0;
   border: 0;
-  background: #0d172950;
+  background: #00000050;
   z-index: 9
 }
 
@@ -1658,15 +1662,6 @@ dialog::backdrop {
 
 [data-theme=dark] .form-error {
   color: #ff9aa5;
-}
-
-[data-theme=dark] .nav-item.active {
-  color: #a8c3ff;
-}
-
-[data-theme=dark] .avatar {
-  background: #20385e;
-  color: #b7ceff;
 }
 
 @media(max-width:1150px) {
@@ -1727,10 +1722,6 @@ dialog::backdrop {
 
 #main:focus {
   outline: none;
-}
-
-[data-theme=dark] .pill {
-  color: #a8c3ff;
 }
 
 /* Compact layouts: labels and controls only. */

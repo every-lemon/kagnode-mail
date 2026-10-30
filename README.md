@@ -8,11 +8,11 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.2.0 branding and security release**. Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **0.2.1 release**. Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
-- KagNode blue branding with the supplied logo recreated as a small SVG, responsive webmail, system-synced light/dark themes, search, pagination, reading, reply, forwarding, attachments, drafts, stars, archive, junk, and trash.
+- KagNode blue branding with the supplied logo recreated as a small SVG, responsive webmail, system-synced light/dark themes with unchanged KagNode blue, search, pagination, reading, reply, forwarding, attachments, drafts, stars, archive, junk, and trash.
 - Safe message rendering: plain text, with readable text extracted from HTML-only mail. No remote tracking images, scripts, or HTML execution.
 - Regular members and administrators. Administrators have a normal mailbox too.
 - Account creation, disabling, password reset/change, mailbox quotas, and multiple domains.

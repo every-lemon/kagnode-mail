@@ -1,6 +1,6 @@
 {
   "date": "2026-10-29",
-  "release": "0.2.0",
+  "release": "0.2.1",
   "environment": "Isolated Ubuntu 24.04 amd64 root filesystem with private network/PID namespaces; actual native daemons; 8 GiB host",
   "application_tests": {
     "passed": 69,
@@ -44,5 +44,11 @@
     "Load/concurrency capacity",
     "Independent security audit"
   ],
-  "systemd_static_validation": "Unit syntax passed on systemd 255 with generators and dependency recursion disabled; runtime lifecycle unqualified"
+  "systemd_static_validation": "Unit syntax passed on systemd 255 with generators and dependency recursion disabled; runtime lifecycle unqualified",
+  "interface_update": {
+    "date": "2026-10-30",
+    "scope": "Theme CSS and browser chrome colors only; backend validation and resource sample above are from 2026-10-29.",
+    "browser_suite": "Passed",
+    "computed_colors": "Black page, panel and sidebar; white primary and message text; buttons, active navigation and avatars retain #2861EC in both themes; logo not inverted."
+  }
 }

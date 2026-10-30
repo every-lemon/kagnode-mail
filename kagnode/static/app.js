@@ -932,7 +932,7 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   $('#theme-toggle').setAttribute('aria-label', theme === 'dark' ? 'Use light theme' : 'Use dark theme');
   $('#theme-toggle').setAttribute('title', theme === 'dark' ? 'Use light theme' : 'Use dark theme');
-  $('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#0c1423' : '#f5f7fc');
+  $('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#000000' : '#f5f7fc');
 }
 applyTheme(themePreference === 'dark' || themePreference === 'light' ? themePreference : systemTheme.matches ? 'dark' : 'light');
 systemTheme.addEventListener('change', e => {
