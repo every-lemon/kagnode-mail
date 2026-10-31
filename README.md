@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/every-lemon/kagnode-logos/main/svg/mail-light.svg" width="440" alt="KagNode. Mail"></p>
+
 # KagNode Mail
 
 <img src="kagnode/static/logo.svg" alt="KagNode logo" width="56" height="50">
@@ -8,7 +10,7 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.3.0 release**. Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **0.4.0 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
@@ -45,7 +47,7 @@ Use a **fresh, dedicated server** with a static public IPv4 address. A 1 GiB VPS
 3. Download the source and review the configuration:
 
    ```bash
-   git clone https://github.com/every-lemon/mail.git
+   git clone https://github.com/every-lemon/kagnode-mail.git
    cd mail
    ./install.sh --dry-run --domain example.com --hostname mail.example.com \
      --ipv4 203.0.113.10 --admin admin@example.com --output ./review
@@ -66,7 +68,7 @@ The installer obtains a real certificate before starting the configured mail sta
 
 `--test-certificate` creates an untrusted seven-day certificate for isolated lab testing only. Do not use this option on a public deployment.
 
-This release uses the `kagnode` package, service account, systemd units, and `/etc/kagnode`, `/opt/kagnode`, `/var/lib/kagnode` paths. It does **not** migrate the earlier Morrow prototype in place. Existing installations must be preserved and migrated deliberately; the installer refuses them. See [operations](docs/operations.md).
+This release uses the `kagnode` package, service account, systemd units, and `/etc/kagnode/mail`, `/opt/kagnode/mail`, `/var/lib/kagnode/mail` paths. It does **not** migrate the earlier Morrow prototype in place. Existing installations must be preserved and migrated deliberately; the installer refuses them. See [operations](docs/operations.md).
 
 ## Mail clients
 
@@ -84,13 +86,13 @@ POP3 and port 465 are intentionally not enabled. This release accepts ASCII doma
 
 There is one Gunicorn worker with two threads, demand-started Dovecot processes, bounded Postfix concurrency, and no persistent web polling or mail indexing daemon. Package installation uses `--no-install-recommends` and Ubuntu's maintained Python packages rather than a second production virtual environment.
 
-**Measured core idle footprint: 82.2 MiB PSS** after two minutes idle in the Ubuntu 24.04 lab, excluding the OS, filesystem cache, and fail2ban. The following 30-second sample measured 0.033% of one CPU core. A universal RAM/idle/disk claim would be misleading. Use `sudo python3 scripts/resources.py` to measure proportional resident memory on your server, `systemd-cgtop` for CPU, and `du -sh /opt/kagnode /var/lib/kagnode /var/vmail` for application/data size. See [validation](docs/validation.md) for measured results and their scope. The web service has a 384 MiB hard memory cap; the sender guard has 128 MiB. These caps are ceilings, not idle estimates.
+**Measured core idle footprint: 82.2 MiB PSS** after two minutes idle in the Ubuntu 24.04 lab, excluding the OS, filesystem cache, and fail2ban. The following 30-second sample measured 0.033% of one CPU core. A universal RAM/idle/disk claim would be misleading. Use `sudo python3 scripts/resources.py` to measure proportional resident memory on your server, `systemd-cgtop` for CPU, and `du -sh /opt/kagnode/mail /var/lib/kagnode/mail /var/vmail` for application/data size. See [validation](docs/validation.md) for measured results and their scope. The web service has a 384 MiB hard memory cap; the sender guard has 128 MiB. These caps are ceilings, not idle estimates.
 
 The small default stack **does not include a content spam filter or antivirus engine**. Junk is a manual folder. OpenDKIM signs outgoing mail; it is not an inbound spam/DMARC enforcement system. Read [security](SECURITY.md) before deciding whether to add filtering or move beyond a small trusted team.
 
 ## Source and downloads
 
-[Repository](https://github.com/every-lemon/mail) · [Releases](https://github.com/every-lemon/mail/releases) · [Report a vulnerability privately](https://github.com/every-lemon/mail/security/advisories/new)
+[Repository](https://github.com/every-lemon/kagnode-mail) · [Releases](https://github.com/every-lemon/kagnode-mail/releases) · [Report a vulnerability privately](https://github.com/every-lemon/kagnode-mail/security/advisories/new)
 
 ## Development and checks
 
@@ -113,4 +115,14 @@ The [GitHub Actions workflow](.github/workflows/test.yml) includes Python/shell 
 - [Security review and hardening details](docs/security-review.md)
 - [Contributing](CONTRIBUTING.md)
 
-MIT licensed.
+AGPL-3.0-only licensed.
+
+## KagNode 0.4 release
+
+The Mail server is an independent, self-hosted open-source project. Its webmail remains available to mailbox users. KagNode's main and Developer websites use only the server-side send API for account and workflow emails; they do not expose a mailbox. The hosted KagNode cloud products remain planned.
+
+New installations use `/opt/kagnode/mail`, `/etc/kagnode/mail` and `/var/lib/kagnode/mail`. Existing installations require the explicit, verified migration in [PATHS.md](PATHS.md); this release does not migrate a running server. Keep upstream Postfix, Dovecot, OpenDKIM and Maildir paths and their permissions. The existing 0.2-to-0.3 database/mail-configuration migration requirement still applies.
+
+Current combined releases and new original work: **AGPL-3.0-only**, with retained MIT legacy and third-party notices in `LICENSES/` and `THIRD_PARTY_NOTICES.md`. Prior MIT grants remain valid. [Brand policy](BRAND-POLICY.md) is separate from software rights.
+
+[KagNode](https://nebulacoder.com) · [Developer](https://dev.nebulacoder.com) · [Logo assets](https://github.com/every-lemon/kagnode-logos)

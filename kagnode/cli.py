@@ -52,9 +52,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("action", choices=["bootstrap", "reset-password", "cleanup"])
     p.add_argument(
-        "--config", default=os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/config.json")
+        "--config", default=os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/mail/config.json")
     )
-    p.add_argument("--database", default="/var/lib/kagnode/directory.sqlite3")
+    p.add_argument("--database", default="/var/lib/kagnode/mail/directory.sqlite3")
     p.add_argument("--domain")
     p.add_argument("--hostname")
     p.add_argument("--ipv4", default="")

@@ -16,6 +16,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -e '.[test]'
+      - name: Path migration fixtures
+        run: python3 scripts/check-migration.py
       - run: python -m pytest -q
       - run: shellcheck install.sh scripts/*.sh tests/*.sh
       - run: playwright install --with-deps chromium

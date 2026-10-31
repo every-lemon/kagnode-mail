@@ -58,7 +58,7 @@ def sender_principal(conn, login, sender):
 def run():
     import Milter
 
-    path = os.environ.get("KAGNODE_DATABASE", "/var/lib/kagnode/directory.sqlite3")
+    path = os.environ.get("KAGNODE_DATABASE", "/var/lib/kagnode/mail/directory.sqlite3")
 
     class SenderGuard(Milter.Base):
         def envfrom(self, sender, *args):

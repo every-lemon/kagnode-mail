@@ -3,11 +3,11 @@
 ## Health and logs
 
 ```bash
-sudo bash /opt/kagnode/scripts/health.sh
+sudo bash /opt/kagnode/mail/scripts/health.sh
 sudo journalctl -u kagnode-web -u kagnode-guard --since '1 hour ago'
 sudo journalctl -u postfix -u dovecot -u opendkim --since '1 hour ago'
 sudo postqueue -p
-sudo python3 /opt/kagnode/scripts/resources.py
+sudo python3 /opt/kagnode/mail/scripts/resources.py
 ```
 
 Some Postfix child processes use syslog identifiers such as `postfix/smtp`, so also inspect the system journal or `/var/log/mail.log` when your host has rsyslog. nginx logs are `/var/log/nginx/kagnode-{access,error}.log` and use the distribution's nginx log rotation. System journals are managed by the OS; set an appropriate journald retention cap on a dedicated small disk.
@@ -19,7 +19,7 @@ Private listeners 8000, 1143, 1587, 8891, and 8892 must remain on 127.0.0.1. `he
 Use a root terminal on the mail server:
 
 ```bash
-cd /opt/kagnode
+cd /opt/kagnode/mail
 sudo python3 -m kagnode.cli reset-password --admin person@example.com
 sudo doveadm kick person@example.com
 ```
@@ -33,7 +33,7 @@ Admin **Edit** disables accounts without deleting their messages. Keep at least 
 Keep encrypted copies on a different machine/storage provider and test restoration. A backup stored only on the mail server is not enough.
 
 ```bash
-sudo bash /opt/kagnode/scripts/backup.sh /var/backups/kagnode-2026-10-29.tar.gz
+sudo bash /opt/kagnode/mail/scripts/backup.sh /var/backups/kagnode-2026-10-29.tar.gz
 ```
 
 This script **briefly stops active web, SMTP, guard, and IMAP services** to take a consistent snapshot, then starts the services that were active. It preserves mail, the Postfix queue, SQLite state, configuration, app code, TLS keys, and DKIM keys. Session and API token records are removed from the backup so restoration requires fresh logins and newly issued integration tokens. The archive is created exclusively with mode 0600 from its first byte and cannot overwrite an existing file or destination symlink. It contains highly sensitive material. The script does not encrypt or upload it.
@@ -49,7 +49,7 @@ Restoration is an operator-controlled recovery, not an installer flag:
 1. Verify archive integrity with `gzip -t` and inspect paths with `tar -tzf`. Keep the original archive intact.
 2. Prepare a dedicated Ubuntu 24.04 host with the same packages and service accounts. Record the original numeric UIDs/GIDs or remap restored ownership to the new `vmail`, `kagnode`, and other package accounts. Numeric IDs are not guaranteed to match across fresh hosts.
 3. Stop the mail/web services. Restore into a staging directory first, inspect it, then copy the intended configuration, application, database, mail, and queue back to their documented paths. Do not overwrite an unrelated host's nginx or mail setup.
-4. Restore `/var/lib/kagnode` as `kagnode:kagnode-read`, directory mode 2750, database mode 0640; `/var/vmail` as `vmail:vmail`; `/etc/kagnode/config.json` as `root:kagnode` 0640; DKIM private key as `opendkim:opendkim` 0600. Update Dovecot's UID/GID settings if IDs differ. Preserve Maildir and queue permissions.
+4. Restore `/var/lib/kagnode/mail` as `kagnode:kagnode-read`, directory mode 2750, database mode 0640; `/var/vmail` as `vmail:vmail`; `/etc/kagnode/mail/config.json` as `root:kagnode` 0640; DKIM private key as `opendkim:opendkim` 0600. Update Dovecot's UID/GID settings if IDs differ. Preserve Maildir and queue permissions.
 5. Verify `postfix check`, `doveconf -n`, `opendkim -n -x /etc/opendkim.conf`, and `nginx -t`. Reload systemd, start services, and check queues and a local delivery.
 6. Update A/PTR if the public IP changed, verify certificate validity/renewal, and test external delivery before considering recovery complete.
 
@@ -57,13 +57,13 @@ DKIM keys must match published DNS. The database and application encryption key 
 
 ## Rename and older installations
 
-KagNode Mail 0.3 uses the `kagnode` Python package and service account, `kagnode-web`/`kagnode-guard` units, and `/etc/kagnode`, `/opt/kagnode`, `/var/lib/kagnode` paths. The installer refuses an existing Morrow prototype; renaming files alone is not a supported migration. Preserve a verified backup and export mail/accounts before a deliberate move to a fresh host. Never delete old mail data or keys simply to bypass this refusal. The new cookie names require a fresh sign-in.
+KagNode Mail 0.3 uses the `kagnode` Python package and service account, `kagnode-web`/`kagnode-guard` units, and `/etc/kagnode/mail`, `/opt/kagnode/mail`, `/var/lib/kagnode/mail` paths. The installer refuses an existing Morrow prototype; renaming files alone is not a supported migration. Preserve a verified backup and export mail/accounts before a deliberate move to a fresh host. Never delete old mail data or keys simply to bypass this refusal. The new cookie names require a fresh sign-in.
 
 ## Update
 
 This release has no automatic updater or database migration framework. Take a tested backup first and review release notes. Apply Ubuntu security updates through your normal server maintenance process. **0.3.0 requires a fresh installation:** token tables, revocation triggers, and mail authentication configuration changed together. Copying application code alone from 0.2 is not supported. Existing installs require a separately reviewed migration; preserve accounts, mail, and keys. The GitHub repository rename to `mail` does not change server paths.
 
-For compatible same-schema KagNode Mail source updates, replace `/opt/kagnode/kagnode` and `/opt/kagnode/scripts` from a reviewed release as root, preserving `/etc/kagnode`, the database, Maildir, queue, and DKIM/TLS keys; then restart `kagnode-web` and `kagnode-guard` and run health checks.
+For compatible same-schema KagNode Mail source updates, replace `/opt/kagnode/mail/kagnode` and `/opt/kagnode/mail/scripts` from a reviewed release as root, preserving `/etc/kagnode/mail`, the database, Maildir, queue, and DKIM/TLS keys; then restart `kagnode-web` and `kagnode-guard` and run health checks.
 
 The installer `--resume` reapplies generated service configurations and creates config backups. It is for resuming/reapplying this same installation, and will overwrite manual edits in managed files. It does not upgrade schema across future releases or merge local changes. Always review changes to renderer output before reapplying. Never use `git pull` as root from an unreviewed remote and immediately execute it.
 

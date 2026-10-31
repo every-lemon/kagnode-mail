@@ -54,7 +54,7 @@ def create_app(overrides=None):
     app = Flask(__name__)
     app.request_class = BoundedRequest
     app.config.update(
-        DATABASE="/var/lib/kagnode/directory.sqlite3",
+        DATABASE="/var/lib/kagnode/mail/directory.sqlite3",
         IMAP_HOST="127.0.0.1",
         IMAP_PORT=1143,
         SMTP_HOST="127.0.0.1",
@@ -70,7 +70,7 @@ def create_app(overrides=None):
         PERMANENT_SESSION_LIFETIME=28800,
         DEMO=False,
     )
-    path = os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/config.json")
+    path = os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/mail/config.json")
     if Path(path).is_file():
         app.config.update(json.loads(Path(path).read_text()))
     if overrides:

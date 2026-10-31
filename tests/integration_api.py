@@ -77,7 +77,7 @@ def run(env):
     limited = issue(["read", "write"])["secret"]
     assert created["token"]["expires"] is None
     # The unprivileged web process encrypted this credential; inspect only inside this test lab.
-    config = json.loads(Path("/etc/kagnode/config.json").read_text())
+    config = json.loads(Path("/etc/kagnode/mail/config.json").read_text())
     with sqlite3.connect(config["DATABASE"]) as conn:
         encrypted = conn.execute(
             "SELECT backend_password FROM api_tokens WHERE id=?", (token_id,)

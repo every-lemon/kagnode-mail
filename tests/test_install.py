@@ -34,7 +34,7 @@ def test_dryrun_no_secrets(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert (tmp_path / "etc/postfix/main.cf").exists()
-    assert not (tmp_path / "etc/kagnode/config.json").exists()
+    assert not (tmp_path / "etc/kagnode/mail/config.json").exists()
 
 
 def test_generated_relay_tls_and_binding(tmp_path):

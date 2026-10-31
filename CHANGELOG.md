@@ -1,4 +1,24 @@
+# 0.4.0
+
+KagNode branding, project-scoped path defaults and an explicit migration tool. Source history and prior releases are retained. See PATHS.md and LICENSES/.
+
 # Changelog
+
+## Local preview — KagNode. wordmark (2026-10-30)
+
+Add the period to the loading, sign-in and sidebar wordmarks. Standalone Mail icons remain unchanged. Tested against the fake mailbox only.
+
+## Local preview — transparent favicon fallbacks (2026-10-30)
+
+Keep the existing Mail mark on a transparent square SVG canvas; add transparent PNG, ICO and touch-icon fallbacks with versioned links. Mail remains a local fake preview and has not been deployed.
+
+## Unreleased — navigation polish
+
+- Searchable keyboard navigation (Ctrl/Cmd+K) for folders, account settings and allowed administration screens.
+- Mobile drawer close control, focus containment, background interaction blocking and clearer current-location labels.
+- Rounded navigation surfaces and short transitions with reduced-motion support.
+- Tested with the disposable fake mailbox; no live Mail deployment or service configuration changes.
+
 
 ## 0.2.1 — 2026-10-30
 

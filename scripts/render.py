@@ -34,7 +34,7 @@ def render(a):
     validate(a.domain, a.hostname, a.ipv4, a.ipv6, a.admin)
     root = Path(a.output)
     cert = "/etc/letsencrypt/live/" + a.hostname
-    database = "/var/lib/kagnode/directory.sqlite3"
+    database = "/var/lib/kagnode/mail/directory.sqlite3"
     files = {}
     files[
         "etc/postfix/main.cf"
@@ -355,7 +355,7 @@ server {{
  access_log /var/log/nginx/kagnode-access.log;
  error_log /var/log/nginx/kagnode-error.log;
  location /static/ {{
-  alias /opt/kagnode/kagnode/static/;
+  alias /opt/kagnode/mail/kagnode/static/;
   expires 1h;
   add_header X-Content-Type-Options nosniff always;
   add_header Strict-Transport-Security "max-age=31536000" always;
@@ -387,7 +387,7 @@ proxy_read_timeout 90s;
     base_service = """User=kagnode
 Group=kagnode
 SupplementaryGroups=kagnode-read
-WorkingDirectory=/opt/kagnode
+WorkingDirectory=/opt/kagnode/mail
 Environment=PYTHONDONTWRITEBYTECODE=1
 UMask=0027
 NoNewPrivileges=true
@@ -404,7 +404,7 @@ RestrictNamespaces=true
 RemoveIPC=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/kagnode
+ReadWritePaths=/var/lib/kagnode/mail
 RestrictSUIDSGID=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -422,7 +422,7 @@ After=network.target dovecot.service postfix.service
 [Service]
 """
         + base_service
-        + """Environment=KAGNODE_CONFIG=/etc/kagnode/config.json
+        + """Environment=KAGNODE_CONFIG=/etc/kagnode/mail/config.json
 ExecStart=/usr/bin/gunicorn --bind 127.0.0.1:8000 --workers 1 --threads 2 --timeout 90 --worker-tmp-dir /run/kagnode-web --access-logfile - kagnode.wsgi:app
 RuntimeDirectory=kagnode-web
 MemoryHigh=256M

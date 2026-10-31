@@ -23,7 +23,7 @@ def snapshot():
             )
             cwd = os.readlink(entry / "cwd")
             app = (
-                cwd == "/opt/kagnode"
+                cwd == "/opt/kagnode/mail"
                 and "python" in exe
                 and ("kagnode" in cmd or "gunicorn" in cmd)
             )

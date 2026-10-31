@@ -71,14 +71,17 @@ trap cleanup EXIT
 trap 'printf "\nInstallation stopped at line %s. No mail or account data was deleted. Review the error, then resume with the same options and --resume.\n" "$LINENO" >&2' ERR
 python3 "$SOURCE_DIR/scripts/render.py" "${ARGS[@]}" --output "$STAGE"
 # This release refuses an implicit rename/migration of an existing installation.
+if [[ -f /etc/kagnode/install-request.json && ! -L /etc/kagnode/install-request.json ]]; then
+ die 'Mail 0.3 uses legacy paths. Review scripts/migrate-paths.py and docs/operations.md before upgrading.'
+fi
 for legacy in /etc/morrow /opt/morrow /var/lib/morrow; do
  [[ ! -e $legacy && ! -L $legacy ]] || die "Legacy Morrow installation found: $legacy. Back up and plan an explicit migration; no existing mail files were changed."
 done
-if [[ -e /etc/kagnode/install-request.json ]]; then
+if [[ -e /etc/kagnode/mail/install-request.json ]]; then
  ((RESUME)) || die 'KagNode Mail already owns this host. Use --resume with the original settings; see docs/operations.md for updates.'
  python3 - "$DOMAIN" "$MAIL_HOST" "$IPV4" "$IPV6" "$ADMIN" "$TEST_CERT" <<'PY'
 import json,sys
-old=json.load(open('/etc/kagnode/install-request.json'))
+old=json.load(open('/etc/kagnode/mail/install-request.json'))
 if old != sys.argv[1:]:
     raise SystemExit('Resume must use the same domain, hostname, IPs, admin, and certificate mode.')
 PY
@@ -90,7 +93,7 @@ else
  for group in kagnode kagnode-read vmail; do
   ! getent group "$group" >/dev/null || die "Existing reserved group: $group. Use a fresh dedicated server."
  done
- for p in /etc/kagnode /etc/postfix/main.cf /etc/dovecot/dovecot.conf /etc/opendkim.conf /opt/kagnode /var/lib/kagnode /var/vmail; do
+ for p in /etc/kagnode/mail /etc/postfix/main.cf /etc/dovecot/dovecot.conf /etc/opendkim.conf /opt/kagnode/mail /var/lib/kagnode/mail /var/vmail; do
   [[ ! -e $p && ! -L $p ]] || die "Existing mail configuration or data found: $p. Use a fresh dedicated server."
  done
  if [[ -d /etc/nginx/sites-enabled ]] && find /etc/nginx/sites-enabled -mindepth 1 ! -name default -print -quit | read -r _; then
@@ -134,10 +137,10 @@ fd=os.open(sys.argv[2],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
 with os.fdopen(fd,'w') as f: f.write(p)
 PY
 PASSWORD_FILE=$STAGE/admin-password
-install -d -m 750 /etc/kagnode
+install -d -m 750 /etc/kagnode/mail
 python3 - "$DOMAIN" "$MAIL_HOST" "$IPV4" "$IPV6" "$ADMIN" "$TEST_CERT" <<'PY'
 import json,sys
-with open('/etc/kagnode/install-request.json','w') as f: json.dump(sys.argv[1:],f)
+with open('/etc/kagnode/mail/install-request.json','w') as f: json.dump(sys.argv[1:],f)
 PY
 export DEBIAN_FRONTEND=noninteractive
 printf 'postfix postfix/main_mailer_type select No configuration\n' | debconf-set-selections
@@ -152,17 +155,17 @@ chmod 755 "$STAGE"
 apt-get -o "Dir::Cache::archives=$STAGE/apt-archives" install -y --no-install-recommends postfix postfix-sqlite dovecot-core dovecot-imapd dovecot-lmtpd dovecot-sqlite nginx-light opendkim opendkim-tools certbot python3-flask python3-cryptography python3-milter gunicorn sqlite3 dnsutils ca-certificates openssl fail2ban python3-systemd
 restore_policy
 getent group kagnode-read >/dev/null || groupadd --system kagnode-read
-id kagnode >/dev/null 2>&1 || useradd --system --user-group --home-dir /var/lib/kagnode --shell /usr/sbin/nologin kagnode
+id kagnode >/dev/null 2>&1 || useradd --system --user-group --home-dir /var/lib/kagnode/mail --shell /usr/sbin/nologin kagnode
 id vmail >/dev/null 2>&1 || useradd --system --user-group --home-dir /var/vmail --shell /usr/sbin/nologin vmail
 for USER in kagnode postfix dovecot; do usermod -a -G kagnode-read "$USER"; done
-install -d -o kagnode -g kagnode-read -m 2750 /var/lib/kagnode
+install -d -o kagnode -g kagnode-read -m 2750 /var/lib/kagnode/mail
 install -d -o vmail -g vmail -m 750 /var/vmail
-install -d -m 755 /opt/kagnode /var/www/kagnode-acme
-cp -a "$SOURCE_DIR/kagnode" /opt/kagnode/
-cp -a "$SOURCE_DIR/scripts" /opt/kagnode/
-chown -R root:root /opt/kagnode
-find /opt/kagnode -type d -exec chmod 755 {} +
-find /opt/kagnode -type f -exec chmod 644 {} +
+install -d -m 755 /opt/kagnode/mail /var/www/kagnode-acme
+cp -a "$SOURCE_DIR/kagnode" /opt/kagnode/mail/
+cp -a "$SOURCE_DIR/scripts" /opt/kagnode/mail/
+chown -R root:root /opt/kagnode/mail
+find /opt/kagnode/mail -type d -exec chmod 755 {} +
+find /opt/kagnode/mail -type f -exec chmod 644 {} +
 install -d -o opendkim -g opendkim -m 750 /etc/opendkim/keys
 if [[ ! -f /etc/opendkim/keys/mail.private ]]; then
  opendkim-genkey -b 2048 -s mail -d "$DOMAIN" -D /etc/opendkim/keys
@@ -173,13 +176,13 @@ python3 - <<'PY'
 import re
 from pathlib import Path
 p=Path('/etc/opendkim/keys/mail.txt')
-Path('/etc/kagnode/dkim-public.txt').write_text(''.join(re.findall(r'"([^"\n]*)"',p.read_text()))+'\n')
+Path('/etc/kagnode/mail/dkim-public.txt').write_text(''.join(re.findall(r'"([^"\n]*)"',p.read_text()))+'\n')
 PY
-PYTHONPATH=/opt/kagnode python3 -m kagnode.cli bootstrap "${ARGS[@]}" --password-file "$PASSWORD_FILE" --dkim-public-file /etc/kagnode/dkim-public.txt
-chown root:kagnode /etc/kagnode/config.json
-chmod 640 /etc/kagnode/config.json
-chmod 751 /etc/kagnode
-chown kagnode:kagnode-read /var/lib/kagnode/directory.sqlite3
+PYTHONPATH=/opt/kagnode/mail python3 -m kagnode.cli bootstrap "${ARGS[@]}" --password-file "$PASSWORD_FILE" --dkim-public-file /etc/kagnode/mail/dkim-public.txt
+chown root:kagnode /etc/kagnode/mail/config.json
+chmod 640 /etc/kagnode/mail/config.json
+chmod 751 /etc/kagnode/mail
+chown kagnode:kagnode-read /var/lib/kagnode/mail/directory.sqlite3
 # ACME-only nginx configuration. No mail listener starts before TLS is ready.
 if [[ ! -f /etc/letsencrypt/live/$MAIL_HOST/fullchain.pem ]]; then
  cat > /etc/nginx/sites-available/kagnode <<EOF
@@ -253,6 +256,6 @@ for attempt in range(15):
 else:
  raise SystemExit('Web application did not become ready. Check journalctl -u kagnode-web.')
 READY
-printf 'complete\n' > /etc/kagnode/install-status
+printf 'complete\n' > /etc/kagnode/mail/install-status
 printf '\nKagNode Mail is ready at https://%s\nSign in as %s using your chosen password.\nOpen Domains & DNS to finish setup.\n\nRequired public TCP ports: 25, 80, 443, 587, 993.\nNo firewall rules were changed. Set your provider PTR to %s.\nConfiguration backup: %s\n' "$MAIL_HOST" "$ADMIN" "$MAIL_HOST" "$BACKUP"
 if ((TEST_CERT)); then printf '\nLAB MODE: self-signed certificate expires in 7 days. Not for public deployment.\n'; fi

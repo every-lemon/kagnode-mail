@@ -204,7 +204,7 @@ for _ in range(50):
 assert raw, "Local SMTP message did not arrive"
 parsed = email.message_from_bytes(raw)
 assert parsed["From"] == "hello@example.test"
-key = Path("/etc/kagnode/dkim-public.txt").read_text().encode()
+key = Path("/etc/kagnode/mail/dkim-public.txt").read_text().encode()
 assert dkim.verify(raw, dnsfunc=lambda name, timeout=5: key), (
     "DKIM signature did not verify"
 )

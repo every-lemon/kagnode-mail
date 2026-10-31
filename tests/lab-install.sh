@@ -4,7 +4,7 @@ set -Eeuo pipefail
 [[ -f /.kagnode-lab ]] || { echo 'Refusing: disposable lab marker /.kagnode-lab is missing.' >&2; exit 1; }
 MODE=${1:-prepare}
 cd /src
-export PYTHONPATH=/opt/kagnode
+export PYTHONPATH=/opt/kagnode/mail
 if [[ $MODE == prepare ]]; then
  export DEBIAN_FRONTEND=noninteractive
  printf '#!/bin/sh\nexit 101\n' >/usr/sbin/policy-rc.d
@@ -13,15 +13,15 @@ if [[ $MODE == prepare ]]; then
  apt-get update
  apt-get install -y --no-install-recommends postfix postfix-sqlite dovecot-core dovecot-imapd dovecot-lmtpd dovecot-sqlite nginx-light opendkim opendkim-tools certbot python3-flask python3-cryptography python3-milter gunicorn sqlite3 dnsutils ca-certificates openssl fail2ban python3-systemd iproute2 busybox procps python3-pytest python3-dkim
  groupadd --system kagnode-read
- useradd --system --user-group --home-dir /var/lib/kagnode --shell /usr/sbin/nologin kagnode
+ useradd --system --user-group --home-dir /var/lib/kagnode/mail --shell /usr/sbin/nologin kagnode
  id vmail >/dev/null 2>&1 || useradd --system --user-group --home-dir /var/vmail --shell /usr/sbin/nologin vmail
  for ACCOUNT in kagnode postfix dovecot; do usermod -a -G kagnode-read "$ACCOUNT"; done
- install -d -o kagnode -g kagnode-read -m 2750 /var/lib/kagnode
+ install -d -o kagnode -g kagnode-read -m 2750 /var/lib/kagnode/mail
  install -d -o vmail -g vmail -m 750 /var/vmail
- install -d -m 755 /opt/kagnode /etc/kagnode /var/www/kagnode-acme
- cp -a kagnode scripts /opt/kagnode/
- find /opt/kagnode -type d -exec chmod 755 {} +
- find /opt/kagnode -type f -exec chmod 644 {} +
+ install -d -m 755 /opt/kagnode/mail /etc/kagnode/mail /var/www/kagnode-acme
+ cp -a kagnode scripts /opt/kagnode/mail/
+ find /opt/kagnode/mail -type d -exec chmod 755 {} +
+ find /opt/kagnode/mail -type f -exec chmod 644 {} +
  install -d -o opendkim -g opendkim -m 750 /etc/opendkim/keys
  opendkim-genkey -b 2048 -s mail -d example.test -D /etc/opendkim/keys
  chown -R opendkim:opendkim /etc/opendkim/keys
@@ -29,15 +29,15 @@ if [[ $MODE == prepare ]]; then
  python3 - <<'PY'
 import re
 from pathlib import Path
-Path('/etc/kagnode/dkim-public.txt').write_text(''.join(re.findall(r'"([^"\n]*)"',Path('/etc/opendkim/keys/mail.txt').read_text())))
+Path('/etc/kagnode/mail/dkim-public.txt').write_text(''.join(re.findall(r'"([^"\n]*)"',Path('/etc/opendkim/keys/mail.txt').read_text())))
 PY
  printf 'LabOnlyPassword123!' >/tmp/lab-password
  chmod 600 /tmp/lab-password
- python3 -m kagnode.cli bootstrap --domain example.test --hostname mail.example.test --ipv4 192.0.2.10 --admin admin@example.test --password-file /tmp/lab-password --dkim-public-file /etc/kagnode/dkim-public.txt
+ python3 -m kagnode.cli bootstrap --domain example.test --hostname mail.example.test --ipv4 192.0.2.10 --admin admin@example.test --password-file /tmp/lab-password --dkim-public-file /etc/kagnode/mail/dkim-public.txt
  rm /tmp/lab-password
- chown root:kagnode /etc/kagnode/config.json
- chmod 640 /etc/kagnode/config.json
- chown kagnode:kagnode-read /var/lib/kagnode/directory.sqlite3
+ chown root:kagnode /etc/kagnode/mail/config.json
+ chmod 640 /etc/kagnode/mail/config.json
+ chown kagnode:kagnode-read /var/lib/kagnode/mail/directory.sqlite3
  python3 scripts/render.py --domain example.test --hostname mail.example.test --ipv4 192.0.2.10 --admin admin@example.test --uid "$(id -u vmail)" --gid "$(id -g vmail)" --output /tmp/rendered
  python3 - <<'FIXMODES'
 import json, shutil
@@ -78,7 +78,7 @@ elif [[ $MODE == test ]]; then
  opendkim -n -x /etc/opendkim.conf
  nginx -t
  /usr/sbin/opendkim -f -x /etc/opendkim.conf >/tmp/opendkim.log 2>&1 & DKIM_PID=$!
- cd /opt/kagnode
+ cd /opt/kagnode/mail
  runuser -u kagnode -- python3 -m kagnode.guard >/tmp/guard.log 2>&1 & GUARD_PID=$!
  dovecot
  postfix start
@@ -92,10 +92,10 @@ elif [[ $MODE == test ]]; then
   fi
   printf 'Holding the isolated stack idle for %s seconds before sampling.\n' "$IDLE_SECONDS"
   for ((remaining=IDLE_SECONDS; remaining>0; remaining-=30)); do sleep 30; done
-  python3 /opt/kagnode/scripts/resources.py --sample-seconds 30 >/tmp/kagnode-resources.json
+  python3 /opt/kagnode/mail/scripts/resources.py --sample-seconds 30 >/tmp/kagnode-resources.json
   cat /tmp/kagnode-resources.json
  else
-  python3 /opt/kagnode/scripts/resources.py
+  python3 /opt/kagnode/mail/scripts/resources.py
  fi
 else
  echo 'Use prepare or test.' >&2; exit 2
