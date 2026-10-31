@@ -248,6 +248,37 @@ def test_health_detects_missing_or_exposed_private_listener(
     assert (result.returncode == 0) is accepted, result.stderr
 
 
+@pytest.mark.parametrize("web_host, private_host, opt_in, accepted", [
+    ("0.0.0.0", "127.0.0.1", "0.0.0.0", True),
+    ("0.0.0.0", "[::1]", "0.0.0.0", True),
+    ("0.0.0.0", "0.0.0.0", "0.0.0.0", False),
+    ("127.0.0.1", "127.0.0.1", "0.0.0.0", False),
+    ("[::]", "127.0.0.1", "0.0.0.0", False),
+    ("0.0.0.0", "127.0.0.1", "*", False),
+])
+def test_health_web_bind_opt_in_only_changes_web_listener(
+    tmp_path, web_host, private_host, opt_in, accepted
+):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    ss = fake_bin / "ss"
+    rows = "\n".join(
+        f"LISTEN 0 128 {web_host if port == 8000 else private_host}:{port} 0.0.0.0:*"
+        for port in (8000, 1143, 1587, 8891, 8892)
+    )
+    ss.write_text("#!/bin/sh\ncat <<'LISTENERS'\n" + rows + "\nLISTENERS\n")
+    ss.chmod(0o755)
+    code = shell_python(
+        "scripts/health.sh", "check 'private listeners stay on loopback' python3 -"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env={**os.environ, "PATH": str(fake_bin) + ":/usr/bin:/bin", "KAGNODE_WEB_BIND": opt_in},
+        capture_output=True,
+    )
+    assert (result.returncode == 0) is accepted, result.stderr
+
+
 def test_cohost_render_keeps_mail_identity_and_proxy_trust_separate(tmp_path):
     args = render.parser().parse_args([
         '--domain', 'example.com', '--hostname', 'mail.example.com',

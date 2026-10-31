@@ -27,10 +27,10 @@ from flask import (
     session,
 )
 from werkzeug.exceptions import HTTPException
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import db
 from .mail import Mail, build_message
+from .proxy import TrustedProxyFix
 
 
 class BoundedRequest(Request):
@@ -69,6 +69,7 @@ def create_app(overrides=None):
         SESSION_COOKIE_SAMESITE="Strict",
         PERMANENT_SESSION_LIFETIME=28800,
         DEMO=False,
+        TRUSTED_PROXIES=["127.0.0.1", "::1"],
     )
     path = os.environ.get("KAGNODE_CONFIG", "/etc/kagnode/mail/config.json")
     if Path(path).is_file():
@@ -86,7 +87,7 @@ def create_app(overrides=None):
     app.config["SESSION_COOKIE_PATH"] = "/"
     auth_cookie = cookie_prefix + "kagnode_sid"
     cipher = Fernet(app.config["CREDENTIAL_KEY"])
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0)
+    app.wsgi_app = TrustedProxyFix(app.wsgi_app, app.config["TRUSTED_PROXIES"])
     app.extensions["mail"] = Mail(app.config)
 
     def getdb():

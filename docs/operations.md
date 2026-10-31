@@ -12,7 +12,7 @@ sudo python3 /opt/kagnode/mail/scripts/resources.py
 
 Some Postfix child processes use syslog identifiers such as `postfix/smtp`, so also inspect the system journal or `/var/log/mail.log` when your host has rsyslog. nginx logs are `/var/log/nginx/kagnode-{access,error}.log` and use the distribution's nginx log rotation. System journals are managed by the OS; set an appropriate journald retention cap on a dedicated small disk.
 
-Private listeners 8000, 1143, 1587, 8891, and 8892 must remain on 127.0.0.1. `health.sh` displays them. A successful local health check does not prove external DNS, port reachability, or deliverability.
+Private listeners 8000, 1143, 1587, 8891, and 8892 use loopback by default. The explicit LAN web exception below applies only to port 8000. `health.sh` displays them. A successful local health check does not prove external DNS, port reachability, or deliverability.
 
 ## Recover a password
 
@@ -90,8 +90,26 @@ The renderer accepts `--service-user`, `--read-group`, `--certificate-dir`, and 
 
 For a separately reviewed shared host, use a distinct identity such as `kagnode-mail`, with `kagnode-mail-read` shared only with Postfix and Dovecot. Set `KAGNODE_SERVICE_USER=kagnode-mail` when running the bootstrap/reset/cleanup CLI as root. Generated systemd units carry the same setting. Update backup restoration ownership to match the chosen user and group rather than copying the default ownership in this guide.
 
-Mail configuration, database, credentials, DKIM keys, and the original website's environment and database must remain inaccessible to the other application's account. Shared parent directories need deliberate traversal permissions and protection against renaming another application's directory. Keep private SMTP, IMAP, milter, and application listeners on loopback.
+Mail configuration, database, credentials, DKIM keys, and the original website's environment and database must remain inaccessible to the other application's account. Shared parent directories need deliberate traversal permissions and protection against renaming another application's directory. Keep private SMTP, IMAP, and milter listeners on loopback. The application listener also defaults to loopback; a reviewed LAN proxy deployment may use the web-only exception below.
 
 A reverse proxy must replace incoming forwarding headers. Trust only its actual IP with `--trusted-proxy`; never trust an arbitrary forwarded address. Terminating web HTTPS at the proxy does not supply certificates for native SMTP and IMAP. Install a trusted certificate for the mail hostname on the Mail server, validate its chain, hostname, expiry, and matching key, and arrange monitored renewal with reloads of nginx, Postfix, and Dovecot. Private keys must travel only over authenticated encrypted connections.
 
 These options do not provide an unattended shared-host installer or a database migration. Back up and review the rendered configuration before activating services.
+
+### Separate LAN reverse proxy
+
+For an explicitly chosen LAN deployment, a systemd override may change only Gunicorn's bind from `127.0.0.1:8000` to `0.0.0.0:8000`. Keep the remaining service settings and all private mail listeners unchanged. Do not forward TCP 8000 from the Internet; public browser and Token API traffic must use the HTTPS reverse proxy.
+
+Add `TRUSTED_PROXIES` to the existing `/etc/kagnode/mail/config.json`, preserving its other values and permissions. It accepts a JSON list of exact proxy IP addresses, for example `["127.0.0.1", "::1", "192.168.0.6"]`. The default is `["127.0.0.1", "::1"]`; an empty list trusts no proxy. CIDR ranges, hostnames, wildcards, and invalid values fail startup. Restart the web service after changing it. This application setting is separate from the renderer's `--trusted-proxy`, which configures Nginx's real-IP module.
+
+Only requests whose actual socket peer is in `TRUSTED_PROXIES` may supply the client IP and scheme through `X-Forwarded-For` and `X-Forwarded-Proto`. Other clients have forwarding headers stripped and retain their actual peer and transport, so a direct LAN request cannot claim HTTPS or evade IP throttling by changing headers. For this LAN override, also add Gunicorn's `--forwarded-allow-ips=` argument with an empty value so the application middleware is the single authority for forwarding headers. Gunicorn otherwise applies its own scheme-header trust before WSGI runs. Never use `--forwarded-allow-ips=*`. The standard dedicated-host defaults continue to trust loopback in both layers.
+
+The edge proxy must overwrite `Host` with the configured mail hostname, `X-Forwarded-For` with `$remote_addr`, and `X-Forwarded-Proto` with `$scheme`, rather than copying client-supplied values. It must enforce the hostname, HTTPS, request limits, and timeouts. Direct HTTP access may show the sign-in page, but Secure cookies and the Token API's HTTPS requirement remain enabled. Native SMTP/IMAP certificates remain a separate requirement.
+
+Run the existing health check with the explicit web binding expectation:
+
+```bash
+sudo env KAGNODE_WEB_BIND=0.0.0.0 bash scripts/health.sh
+```
+
+This opt-in requires port 8000 to listen on exactly `0.0.0.0`; it still rejects non-loopback private SMTP, IMAP, or milter listeners and detects missing listeners. Without the opt-in, the original loopback checks apply. The renderer and installer retain their loopback defaults.

@@ -11,7 +11,10 @@ OUT = Path(os.environ.get("KAGNODE_SCREENSHOT_DIR", ROOT / "docs/screenshots"))
 URL = os.environ.get("KAGNODE_PREVIEW_URL", "http://127.0.0.1:8025").rstrip("/")
 OUT.mkdir(parents=True, exist_ok=True)
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+    browser = p.chromium.launch(
+        headless=True, args=["--no-sandbox"],
+        executable_path=os.environ.get("KAGNODE_BROWSER_EXECUTABLE") or None,
+    )
     page = browser.new_page(
         viewport={"width": 1440, "height": 1000}, device_scale_factor=1
     )
@@ -39,6 +42,18 @@ with sync_playwright() as p:
         has_text="Too many requests. Please wait"
     ).wait_for()
     page.locator("#login-form button").click()
+    page.locator(".message-row").first.wait_for()
+    expect(page.locator('#mail-nav a[href="#inbox"]')).to_have_attribute("aria-current", "page")
+    expect(page.locator('.sidebar .website-link')).to_have_attribute("href", "https://nebulacoder.com")
+    expect(page.locator('.sidebar .website-link')).to_have_text("KagNode Website")
+    # Quick navigation follows the same account destinations and marks the current one.
+    page.keyboard.press("Control+k")
+    expect(page.locator('#navigation-results a[href="#inbox"]')).to_have_attribute("aria-current", "page")
+    page.locator("#navigation-query").fill("Account")
+    page.keyboard.press("Enter")
+    expect(page.locator("#profile-button")).to_have_attribute("aria-current", "page")
+    expect(page.locator("#location-page")).to_have_text("Account")
+    page.locator('#mail-nav a[href="#inbox"]').click()
     page.locator(".message-row").first.wait_for()
     page.locator(".message-row").first.click()
     page.locator(".message-body").wait_for()
@@ -290,6 +305,25 @@ with sync_playwright() as p:
     page.locator("#sidebar.open").wait_for(state="visible")
     page.locator('a[href="#domains"]').click()
     page.locator("#sidebar:not(.open)").wait_for(state="attached")
+    # Navigation remains reachable on short phones and tablets; account/site actions
+    # stay visible while the folder list scrolls independently.
+    for width, height in [(320, 568), (390, 844), (768, 1024), (900, 700)]:
+        page.set_viewport_size({"width": width, "height": height})
+        page.locator("#mobile-menu").click()
+        expect(page.locator("#mobile-menu")).to_have_attribute("aria-expanded", "true")
+        page.locator('#admin-nav a[href="#tokens"]').scroll_into_view_if_needed()
+        assert page.locator('.sidebar .website-link').evaluate(
+            "el => {const r=el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;}"
+        ), f"Sidebar bottom outside viewport at {width}px"
+        page.locator("#profile-button").click()
+        expect(page.locator("#location-page")).to_have_text("Account")
+        expect(page.locator("#location-page")).to_be_visible()
+        expect(page.locator("#mobile-menu")).to_have_attribute("aria-expanded", "false")
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Overflow at {width}px"
+        page.locator("#mobile-menu").click()
+        page.keyboard.press("Escape")
+        expect(page.locator("#mobile-menu")).to_be_focused()
+    page.screenshot(path=str(OUT / "tablet-navigation.png"), full_page=True)
     page.locator("#logout-button").click()
     page.locator("#login-view").wait_for(state="visible")
     page.locator("[name=email]").fill("sam@example.com")

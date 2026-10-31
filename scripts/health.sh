@@ -20,8 +20,11 @@ with urllib.request.urlopen('http://127.0.0.1:8000/api/session',timeout=5) as r:
  assert r.status==200
 PY
 check 'private listeners stay on loopback' python3 - <<'PY'
-import ipaddress, subprocess
+import ipaddress, os, subprocess
 expected = {8000,1143,1587,8891,8892}
+web_bind = os.environ.get('KAGNODE_WEB_BIND', 'loopback')
+if web_bind not in ('loopback', '0.0.0.0'):
+ raise SystemExit('KAGNODE_WEB_BIND must be loopback or 0.0.0.0')
 seen = set()
 for row in subprocess.check_output(['ss','-H','-ltn'], text=True).splitlines():
  address, _, port = row.split()[3].rpartition(':')
@@ -31,13 +34,16 @@ for row in subprocess.check_output(['ss','-H','-ltn'], text=True).splitlines():
    private = ipaddress.ip_address(address).is_loopback
   except ValueError:
    private = False
-  if not private:
+  if int(port) == 8000 and web_bind == '0.0.0.0':
+   if address != '0.0.0.0':
+    raise SystemExit(f'Expected web listener 0.0.0.0:8000, found {address}:{port}')
+  elif not private:
    raise SystemExit(f'Private service is exposed: {address}:{port}')
   seen.add(int(port))
 if seen != expected:
  raise SystemExit(f'Missing private listeners: {sorted(expected-seen)}')
 PY
-printf '\nListeners (private ports 8000,1143,1587,8891,8892 must be loopback only):\n'
+printf '\nListeners (8000: %s; private ports 1143,1587,8891,8892: loopback only):\n' "${KAGNODE_WEB_BIND:-loopback}"
 ss -ltn | awk 'NR==1 || $4 ~ /:(25|80|443|587|993|8000|1143|1587|8891|8892)$/'
 printf '\nDNS records: sign in and open Administration → Domains & DNS → Check published DNS.\n'
 exit "$FAILED"
