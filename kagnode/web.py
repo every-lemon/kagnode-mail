@@ -258,7 +258,11 @@ def create_app(overrides=None):
             app.logger.warning("Mail operation failed: %s", type(exc).__name__)
             # Do not encourage blind resend after an uncertain SMTP timeout.
             return jsonify(
-                error="Mail service unavailable or request rejected. If sending timed out, check Sent and delivery before retrying."
+                error=(
+                    "Mail service unavailable or request rejected. If sending timed out, check Sent and delivery before retrying."
+                    if request.path == "/api/send"
+                    else "Could not connect to your mailbox. Try again shortly. If this continues, contact your mail administrator."
+                )
             ), 502
         app.logger.exception("Unhandled request error")
         return jsonify(error="Something went wrong. Check the server journal."), 500

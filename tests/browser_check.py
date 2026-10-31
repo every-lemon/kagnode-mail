@@ -43,6 +43,16 @@ with sync_playwright() as p:
     ).wait_for()
     page.locator("#login-form button").click()
     page.locator(".message-row").first.wait_for()
+    # A mailbox outage has an explicit recovery action without retrying sends.
+    page.route("**/api/messages?*", lambda route: route.fulfill(
+        status=502, content_type="application/json",
+        body=json.dumps({"error": "Could not connect to your mailbox."}),
+    ), times=1)
+    page.locator("#refresh-mail").click()
+    expect(page.locator("#message-list")).to_contain_text("Could not connect to your mailbox.")
+    expect(page.locator("#next-page")).to_be_disabled()
+    page.get_by_role("button", name="Try again", exact=True).click()
+    page.locator(".message-row").first.wait_for()
     expect(page.locator('#mail-nav a[href="#inbox"]')).to_have_attribute("aria-current", "page")
     expect(page.locator('.sidebar .website-link')).to_have_attribute("href", "https://nebulacoder.com")
     expect(page.locator('.sidebar .website-link')).to_have_text("KagNode Website")

@@ -358,7 +358,16 @@ async function loadMessages() {
     $('#next-page').disabled = state.page >= r.pages;
     renderList();
   } catch (e) {
-    if (gen === state.generation) $('#message-list').replaceChildren(blank('Mailbox unavailable.', e.message, 'refresh'));
+    if (gen === state.generation) {
+      state.messages = [];
+      $('#list-count').textContent = 'Unable to load';
+      $('#page-count').textContent = '';
+      $('#prev-page').disabled = true;
+      $('#next-page').disabled = true;
+      const notice = blank('Could not load your mailbox.', e.message, 'refresh');
+      notice.append(button('Try again', () => loadMessages(), 'button', 'refresh'));
+      $('#message-list').replaceChildren(notice);
+    }
   }
 }
 

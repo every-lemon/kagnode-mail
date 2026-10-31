@@ -7,11 +7,13 @@ import smtplib
 import time
 from contextlib import contextmanager
 from email import policy
+from email.errors import HeaderParseError
 from email.message import EmailMessage
-from email.utils import formatdate, getaddresses, make_msgid
+from email.headerregistry import Address
+from email.utils import formatdate, make_msgid
 from html.parser import HTMLParser
 
-from .db import address
+from .db import address, domain
 
 FOLDERS = {
     "inbox": "INBOX",
@@ -74,13 +76,29 @@ def parse_message(raw):
 def recipients(value):
     if not value.strip():
         return []
-    if "\r" in value or "\n" in value:
-        raise ValueError("Recipients must be on one line.")
-    result = [address(v) for _, v in getaddresses([value])]
-    if not result and value.strip():
-        raise ValueError("Enter a valid recipient.")
-    if len(result) > 50:
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("Recipients must be on one line without control characters.")
+    # Hosted mailbox naming rules do not apply to addresses on other servers.
+    # Parse the complete list: never silently discard a malformed recipient.
+    try:
+        header = policy.default.header_factory("To", value)
+        if header.defects or not header.addresses:
+            raise ValueError
+        parsed = header.addresses
+    except (ValueError, IndexError, HeaderParseError):
+        raise ValueError("Enter complete email addresses separated by commas.") from None
+    if len(parsed) > 50:
         raise ValueError("Send to at most 50 recipients at a time.")
+    result = []
+    for item in parsed:
+        if not item.username or not item.domain:
+            raise ValueError("Enter a complete recipient address, such as name@example.com.")
+        if not item.username.isascii():
+            raise ValueError("Recipient addresses must use ASCII characters; SMTPUTF8 is not supported.")
+        target = Address(username=item.username, domain=domain(item.domain)).addr_spec
+        if len(item.username) > 64 or len(target) > 254:
+            raise ValueError("Recipient address is too long.")
+        result.append(target)
     return list(dict.fromkeys(result))
 
 
@@ -90,10 +108,19 @@ def build_message(data, user, allowed, attachments=(), draft=False):
         for k in ("from", "to", "cc", "bcc", "subject", "body")
     ):
         raise ValueError("Message fields must be text.")
-    sender = address(data.get("from", user["email"]))
+    try:
+        sender = address(data.get("from", user["email"]))
+    except ValueError:
+        raise ValueError("From: choose an allowed sender address.") from None
     if sender not in allowed:
         raise PermissionError("You do not have permission to send from this address.")
-    to, cc, bcc = (recipients(data.get(k, "")) for k in ("to", "cc", "bcc"))
+    fields = []
+    for key in ("to", "cc", "bcc"):
+        try:
+            fields.append(recipients(data.get(key, "")))
+        except ValueError as exc:
+            raise ValueError(f"{key.capitalize()}: {exc}") from None
+    to, cc, bcc = fields
     targets = list(dict.fromkeys(to + cc + bcc))
     if (not targets and not draft) or len(targets) > 50:
         raise ValueError("Choose between 1 and 50 recipients.")

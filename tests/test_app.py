@@ -4,6 +4,32 @@ from cryptography.fernet import Fernet
 from kagnode import db
 
 
+def test_compose_validation_and_mailbox_recovery_errors(app, client, monkeypatch):
+    headers = login(client, "member")
+    sent = []
+    def send(user, password, message, sender, targets):
+        sent.append(targets)
+        return {"status": "accepted", "refused": []}
+    monkeypatch.setattr(app.extensions["mail"], "send", send)
+    result = client.post("/api/send", data={"to": "O'Connor@example.org,", "body": "Hello"}, content_type="multipart/form-data", headers=headers)
+    assert result.status_code == 200
+    assert sent == [["O'Connor@example.org"]]
+    result = client.post("/api/send", json={"to": "friend@example.org", "cc": "broken"}, headers=headers)
+    assert result.status_code == 400 and result.json["error"].startswith("Cc:")
+    assert len(sent) == 1
+    def unavailable(*args, **kwargs):
+        raise ConnectionRefusedError
+    monkeypatch.setattr(app.extensions["mail"], "list", unavailable)
+    result = client.get("/api/messages?folder=inbox")
+    assert result.status_code == 502
+    assert "Could not connect to your mailbox" in result.json["error"]
+    assert "sending" not in result.json["error"]
+    monkeypatch.setattr(app.extensions["mail"], "send", unavailable)
+    result = client.post("/api/send", json={"to": "friend@example.org"}, headers=headers)
+    assert result.status_code == 502
+    assert "before retrying" in result.json["error"]
+
+
 def test_security_headers(client):
     r = client.get("/")
     assert r.status_code == 200

@@ -10,7 +10,7 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.4.3 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **0.4.4 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
@@ -80,7 +80,7 @@ This release uses the `kagnode` package, service account, systemd units, and `/e
 | Password | The same password used for webmail |
 | Extra sender address | Must be an explicitly granted mailbox or alias |
 
-POP3 and port 465 are intentionally not enabled. This release accepts ASCII domains with alphabetic top-level domains and ASCII mailbox addresses; SMTPUTF8 is not supported. Local-part spelling is normalized to lowercase.
+POP3 and port 465 are intentionally not enabled. This release accepts ASCII domains with alphabetic top-level domains and ASCII mailbox addresses; SMTPUTF8 is not supported. Hosted mailbox names are normalized to lowercase; external recipient local parts retain their spelling. Separate Compose recipients with commas; display names and a trailing comma are supported.
 
 ## Resource use
 
@@ -138,3 +138,7 @@ Navigation keeps mailbox and administration destinations in their own scroll are
 ## KagNode 0.4.3
 
 Opening Mail through a direct HTTP/IP address now explains how to reach secure sign-in before asking for a password. Only the configured HTTPS Mail origin offers the production sign-in form. An incorrect proxy scheme gets a specific configuration message. Origin checks, CSRF, and secure session cookies remain enforced.
+
+## KagNode 0.4.4
+
+Compose validates external recipients separately from hosted mailbox names, accepting valid punctuation, quoted addresses, display names, and trailing commas. Invalid recipients identify the To, Cc, or Bcc field and prevent submission of the entire list. Mailbox connection failures show a direct explanation and a Try again button; send failures retain the warning to check delivery before retrying.
