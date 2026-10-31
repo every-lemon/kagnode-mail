@@ -26,6 +26,7 @@ jobs:
           python scripts/demo.py > /tmp/kagnode-preview.log 2>&1 &
           for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8025/ >/dev/null && break; sleep 1; done
           python tests/browser_check.py
+          python tests/browser_login_check.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

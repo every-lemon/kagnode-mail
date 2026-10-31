@@ -10,7 +10,7 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.4.2 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **0.4.3 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
@@ -134,3 +134,7 @@ The configuration renderer supports a separate Mail service identity, read group
 ## KagNode 0.4.2
 
 Navigation keeps mailbox and administration destinations in their own scroll area, with account controls and one KagNode Website link anchored below. Current destinations remain visible in the sidebar and quick navigation. The compact footer keeps source and license links beside the content; tablet and phone layouts use a navigation drawer. Mail protocols, API permissions and delivery behavior are unchanged. Explicit `TRUSTED_PROXIES` validation protects client addresses and HTTPS checks when an installation deliberately exposes its web listener to a LAN reverse proxy; see [operations](docs/operations.md).
+
+## KagNode 0.4.3
+
+Opening Mail through a direct HTTP/IP address now explains how to reach secure sign-in before asking for a password. Only the configured HTTPS Mail origin offers the production sign-in form. An incorrect proxy scheme gets a specific configuration message. Origin checks, CSRF, and secure session cookies remain enforced.

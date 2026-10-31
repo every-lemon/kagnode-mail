@@ -12,6 +12,7 @@ const state = {
   admin: null,
   tokens: null,
   demo: false,
+  login_allowed: false,
   generation: 0
 };
 const folders = [
@@ -224,6 +225,36 @@ function nav() {
   $('#sidebar-avatar').textContent = initials(state.user.name);
   $('#sidebar-role').textContent = state.user.admin ? 'Administrator' : 'Personal mailbox';
 }
+function renderLoginAccess(session) {
+  const allowed = session.login_allowed === true;
+  const form = $('#login-form');
+  form.hidden = !allowed;
+  for (const control of form.elements) control.disabled = !allowed;
+  $('#login-help').hidden = !allowed;
+  $('#login-access').hidden = allowed;
+  $('#secure-login-link').hidden = true;
+  $('#secure-login-link').removeAttribute('href');
+  $('#login-title').textContent = 'Sign in';
+  if (allowed) return;
+  form.reset();
+  let destination;
+  try {
+    destination = new URL(session.login_url);
+    if (destination.protocol !== 'https:' || destination.username || destination.password) destination = null;
+  } catch {}
+  const alreadyCanonical = destination?.origin === location.origin;
+  $('#login-title').textContent = alreadyCanonical ? 'Secure sign-in unavailable' : 'Open secure mail';
+  $('#login-access-message').textContent = alreadyCanonical
+    ? 'The server could not confirm the secure connection. Ask your administrator to check the mail proxy’s HTTPS settings.'
+    : destination
+      ? `Sign in at ${destination.hostname} using HTTPS. This address cannot keep your account securely signed in. If the secure site does not open, ask your administrator to finish its setup.`
+      : 'The secure mail address is unavailable. Ask your administrator to check the mail website configuration.';
+  if (destination && !alreadyCanonical) {
+    $('#secure-login-link').href = destination.href;
+    $('#secure-login-link').hidden = false;
+  }
+}
+
 async function boot() {
   try {
     const s = await api('/session');
@@ -234,6 +265,7 @@ async function boot() {
     $('#demo-login').hidden = !s.demo;
     $('#preview-badge').hidden = !s.demo;
     $('#server-host').textContent = s.hostname || '';
+    renderLoginAccess(s);
     if (s.user) {
       nav();
       await route();
@@ -247,7 +279,8 @@ async function boot() {
       $('#compose-form').reset();
       document.querySelectorAll('dialog[open]').forEach(d => d.close());
       document.title = 'Sign in · KagNode Mail';
-      $('#login-form [name=email]').focus();
+      if (s.login_allowed) $('#login-form [name=email]').focus();
+      else $('#login-access').focus();
     }
   } catch (e) {
     $('#loading').replaceChildren(blank('Could not open KagNode Mail.', e.message), button('Try again', () => boot()));
@@ -998,6 +1031,7 @@ function renderAccount() {
 }
 $('#login-form').addEventListener('submit', ev => {
   ev.preventDefault();
+  if (state.login_allowed !== true) return;
   const f = ev.currentTarget;
   $('#login-error').textContent = '';
   const b = $('button', f);

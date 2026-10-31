@@ -1728,13 +1728,14 @@ dialog::backdrop {
 .login-layout {
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 28px;
 }
 
 .login-form-wrap {
-  width: 420px;
+  width: min(420px, 100%);
+  min-width: 0;
   max-width: 100%;
   margin: 0;
   padding: 36px;
@@ -2109,3 +2110,8 @@ dialog::backdrop {
   .sidebar-bottom { gap: 6px; padding-top: 10px; }
   .sidebar-close { top: 14px; }
 }
+
+/* Explain the secure entry point before collecting any credentials. */
+.login-access { margin: 0; outline: none; }
+.login-access p { font-size: 13px; line-height: 1.75; color: var(--muted); overflow-wrap: anywhere; }
+.login-access .button { margin-top: 8px; }

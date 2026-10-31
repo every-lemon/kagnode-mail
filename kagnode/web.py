@@ -271,12 +271,20 @@ def create_app(overrides=None):
     def current_session():
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(32)
+        login_url = "https://" + app.config["MAIL_HOSTNAME"] + "/"
+        login_allowed = (
+            app.config["DEMO"]
+            or app.config["TESTING"]
+            or (request.is_secure and request.host_url == login_url)
+        )
         return jsonify(
             user=public_user(g.user) if g.user else None,
             csrf=g.auth["csrf"] if g.user else session["csrf"],
             demo=app.config["DEMO"],
             identities=db.identities(getdb(), g.user["id"]) if g.user else [],
             hostname=app.config["MAIL_HOSTNAME"],
+            login_url=login_url,
+            login_allowed=bool(login_allowed),
         )
 
     @app.post("/api/login")
