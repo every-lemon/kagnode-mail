@@ -10,7 +10,7 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.4.0 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **0.4.1 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
@@ -126,3 +126,7 @@ New installations use `/opt/kagnode/mail`, `/etc/kagnode/mail` and `/var/lib/kag
 Current combined releases and new original work: **AGPL-3.0-only**, with retained MIT legacy and third-party notices in `LICENSES/` and `THIRD_PARTY_NOTICES.md`. Prior MIT grants remain valid. [Brand policy](BRAND-POLICY.md) is separate from software rights.
 
 [KagNode](https://nebulacoder.com) · [Developer](https://dev.nebulacoder.com) · [Logo assets](https://github.com/every-lemon/kagnode-logos)
+
+## KagNode 0.4.1
+
+The configuration renderer supports a separate Mail service identity, read group, certificate directory, and one explicitly trusted reverse proxy. These options support reviewed installations alongside existing KagNode websites; the standard installer continues to require a fresh, dedicated host. See [cohosted configuration](docs/operations.md#reviewed-cohosted-configuration).

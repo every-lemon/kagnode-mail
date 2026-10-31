@@ -83,3 +83,15 @@ Keep HTTP port 80 and the ACME webroot route available. The isolated `--test-cer
 Default mailbox quota: 1024 MiB. Administrators can set 64 MiB–1 TiB per account. Quotas include Sent, Drafts, Archive, Junk, and Trash. Moving to Trash does not recover disk until permanently deleted. Quota changes apply on new Dovecot user sessions; use `doveadm kick` for immediate application to connected clients and `doveadm quota recalc -u EMAIL` if counters need rebuilding.
 
 Audit retention is bounded; transient session/counter cleanup runs daily. Mail and queued outbound messages are not automatically erased. Install cache removal is intentionally left to the OS administrator; the installer does not remove unrelated caches or files. Maildir stores what arrives; actual disk requirements are driven primarily by attachment volume and retention.
+
+## Reviewed cohosted configuration
+
+The renderer accepts `--service-user`, `--read-group`, `--certificate-dir`, and `--trusted-proxy`. Defaults retain the dedicated-host installation. These options only render configuration; they do not change existing users, permissions, mail services, or websites. Never bypass the installer's existing-host checks.
+
+For a separately reviewed shared host, use a distinct identity such as `kagnode-mail`, with `kagnode-mail-read` shared only with Postfix and Dovecot. Set `KAGNODE_SERVICE_USER=kagnode-mail` when running the bootstrap/reset/cleanup CLI as root. Generated systemd units carry the same setting. Update backup restoration ownership to match the chosen user and group rather than copying the default ownership in this guide.
+
+Mail configuration, database, credentials, DKIM keys, and the original website's environment and database must remain inaccessible to the other application's account. Shared parent directories need deliberate traversal permissions and protection against renaming another application's directory. Keep private SMTP, IMAP, milter, and application listeners on loopback.
+
+A reverse proxy must replace incoming forwarding headers. Trust only its actual IP with `--trusted-proxy`; never trust an arbitrary forwarded address. Terminating web HTTPS at the proxy does not supply certificates for native SMTP and IMAP. Install a trusted certificate for the mail hostname on the Mail server, validate its chain, hostname, expiry, and matching key, and arrange monitored renewal with reloads of nginx, Postfix, and Dovecot. Private keys must travel only over authenticated encrypted connections.
+
+These options do not provide an unattended shared-host installer or a database migration. Back up and review the rendered configuration before activating services.

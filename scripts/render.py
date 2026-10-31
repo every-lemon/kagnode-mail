@@ -32,8 +32,20 @@ def validate(domain, hostname, ipv4, ipv6, admin):
 
 def render(a):
     validate(a.domain, a.hostname, a.ipv4, a.ipv6, a.admin)
+    service_user = getattr(a, 'service_user', 'kagnode')
+    read_group = getattr(a, 'read_group', 'kagnode-read')
+    for name in (service_user, read_group):
+        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,30}', name):
+            raise ValueError('Use a valid service account and read-group name.')
     root = Path(a.output)
-    cert = "/etc/letsencrypt/live/" + a.hostname
+    cert = getattr(a, 'certificate_dir', '') or "/etc/letsencrypt/live/" + a.hostname
+    if not re.fullmatch(r'/etc/[A-Za-z0-9_./-]+', cert) or '..' in Path(cert).parts:
+        raise ValueError('Certificate directory must be an absolute path under /etc.')
+    trusted_proxy = getattr(a, 'trusted_proxy', '')
+    real_ip = ''
+    if trusted_proxy:
+        trusted_proxy = str(ipaddress.ip_address(trusted_proxy))
+        real_ip = f' set_real_ip_from {trusted_proxy};\n real_ip_header X-Forwarded-For;\n real_ip_recursive off;\n'
     database = "/var/lib/kagnode/mail/directory.sqlite3"
     files = {}
     files[
@@ -188,7 +200,7 @@ userdb {{
  args = /etc/dovecot/kagnode-sql.conf.ext
 }}
 service auth {{
- extra_groups = kagnode-read
+ extra_groups = {read_group}
  unix_listener /var/spool/postfix/private/auth {{
   mode = 0660
   user = postfix
@@ -196,7 +208,7 @@ service auth {{
  }}
 }}
 service auth-worker {{
- extra_groups = kagnode-read
+ extra_groups = {read_group}
  user = dovecot
 }}
 service imap-login {{
@@ -339,6 +351,7 @@ server {{
  listen 443 ssl;
  listen [::]:443 ssl;
  server_name {a.hostname};
+{real_ip}
  if ($host != {a.hostname}) {{ return 421; }}
  ssl_certificate {cert}/fullchain.pem;
  ssl_certificate_key {cert}/privkey.pem;
@@ -384,9 +397,10 @@ proxy_set_header Accept-Encoding "";
 proxy_connect_timeout 5s;
 proxy_read_timeout 90s;
 """
-    base_service = """User=kagnode
-Group=kagnode
-SupplementaryGroups=kagnode-read
+    base_service = f"""User={service_user}
+Group={service_user}
+SupplementaryGroups={read_group}
+Environment=KAGNODE_SERVICE_USER={service_user}
 WorkingDirectory=/opt/kagnode/mail
 Environment=PYTHONDONTWRITEBYTECODE=1
 UMask=0027
@@ -515,6 +529,10 @@ def parser():
     p.add_argument("--ipv6", default="")
     p.add_argument("--uid", type=int, default=5000)
     p.add_argument("--gid", type=int, default=5000)
+    p.add_argument("--service-user", default="kagnode")
+    p.add_argument("--read-group", default="kagnode-read")
+    p.add_argument("--certificate-dir", default="")
+    p.add_argument("--trusted-proxy", default="")
     return p
 
 

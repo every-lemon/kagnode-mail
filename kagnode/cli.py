@@ -38,10 +38,10 @@ def drop_database_privileges():
     """Never open service-owned SQLite files or journals with root privileges."""
     if os.geteuid() == 0:
         try:
-            account = pwd.getpwnam("kagnode")
+            account = pwd.getpwnam(os.environ.get("KAGNODE_SERVICE_USER", "kagnode"))
         except KeyError:
             raise ValueError(
-                "The kagnode service account is missing. Run the installer first."
+                "The configured KagNode Mail service account is missing. Run the installer first."
             )
         os.initgroups(account.pw_name, account.pw_gid)
         os.setgid(account.pw_gid)

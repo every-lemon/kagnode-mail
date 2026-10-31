@@ -246,3 +246,26 @@ def test_health_detects_missing_or_exposed_private_listener(
         capture_output=True,
     )
     assert (result.returncode == 0) is accepted, result.stderr
+
+
+def test_cohost_render_keeps_mail_identity_and_proxy_trust_separate(tmp_path):
+    args = render.parser().parse_args([
+        '--domain', 'example.com', '--hostname', 'mail.example.com',
+        '--ipv4', '203.0.113.10', '--admin', 'caleb@example.com', '--output', str(tmp_path),
+        '--service-user', 'kagnode-mail', '--read-group', 'kagnode-mail-read',
+        '--certificate-dir', '/etc/kagnode/mail/tls/current', '--trusted-proxy', '192.168.0.6'])
+    files = render.render(args)
+    for name in ('web', 'guard', 'maintenance'):
+        unit = files[f'etc/systemd/system/kagnode-{name}.service']
+        assert 'User=kagnode-mail\nGroup=kagnode-mail\n' in unit
+        assert 'Environment=KAGNODE_SERVICE_USER=kagnode-mail' in unit
+    assert 'extra_groups = kagnode-mail-read' in files['etc/dovecot/dovecot.conf']
+    assert 'set_real_ip_from 192.168.0.6;' in files['etc/nginx/sites-available/kagnode']
+    assert 'set_real_ip_from 0.0.0.0' not in files['etc/nginx/sites-available/kagnode']
+    assert '/etc/kagnode/mail/tls/current/privkey.pem' in files['etc/postfix/main.cf']
+    assert '127.0.0.1:8000' in files['etc/systemd/system/kagnode-web.service']
+    args.service_user = 'root\nExecStart=/bin/false'
+    with pytest.raises(ValueError): render.render(args)
+    args.service_user = 'kagnode-mail'
+    args.certificate_dir = '/etc/../tmp/key'
+    with pytest.raises(ValueError): render.render(args)
