@@ -504,6 +504,7 @@ async function mailAction(action) {
 }
 let composeGeneration = 0;
 async function compose(data = {}, attachments = []) {
+  setSidebar(false);
   const generation = ++composeGeneration,
     sourceUID = state.current?.uid,
     sourceFolder = state.folder;
@@ -1060,6 +1061,7 @@ $('#logout-button').addEventListener('click', () => busy($('#logout-button'), as
   await boot();
 }));
 $('#compose-button').addEventListener('click', () => compose());
+$('#compose-mobile')?.addEventListener('click', () => compose());
 $('#compose-form').addEventListener('submit', async ev => {
   ev.preventDefault();
   const f = ev.currentTarget,

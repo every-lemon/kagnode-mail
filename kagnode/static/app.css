@@ -2115,3 +2115,13 @@ dialog::backdrop {
 .login-access { margin: 0; outline: none; }
 .login-access p { font-size: 13px; line-height: 1.75; color: var(--muted); overflow-wrap: anywhere; }
 .login-access .button { margin-top: 8px; }
+
+/* Keep compose within reach without reopening the mobile navigation drawer. */
+.list-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.mobile-compose-action { display: none; }
+@media(max-width:900px) {
+ .mobile-compose-action { display: inline-flex; min-height: 44px; padding: 9px 12px; gap: 7px; font-size: 13px; }
+ .list-subhead { gap: 8px; }
+ .list-subhead > strong { min-width: 0; overflow-wrap: anywhere; }
+ .list-actions #refresh-mail { width: 44px; height: 44px; }
+}

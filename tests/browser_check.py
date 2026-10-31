@@ -317,6 +317,18 @@ with sync_playwright() as p:
     page.locator("#sidebar:not(.open)").wait_for(state="attached")
     # Navigation remains reachable on short phones and tablets; account/site actions
     # stay visible while the folder list scrolls independently.
+    # Mobile composition is reachable directly; the drawer stays closed on return.
+    page.evaluate("location.hash='inbox'")
+    page.locator(".message-row").first.wait_for()
+    page.locator("#compose-mobile").click()
+    expect(page.locator("#compose-dialog")).to_be_visible()
+    expect(page.locator("#mobile-menu")).to_have_attribute("aria-expanded", "false")
+    page.locator("[data-close=compose-dialog]").click()
+    page.locator("#mobile-menu").click()
+    page.locator("#compose-button").click()
+    expect(page.locator("#compose-dialog")).to_be_visible()
+    expect(page.locator("#mobile-menu")).to_have_attribute("aria-expanded", "false")
+    page.locator("[data-close=compose-dialog]").click()
     for width, height in [(320, 568), (390, 844), (768, 1024), (900, 700)]:
         page.set_viewport_size({"width": width, "height": height})
         page.locator("#mobile-menu").click()
