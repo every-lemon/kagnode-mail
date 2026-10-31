@@ -520,3 +520,27 @@ def test_saved_draft_reports_success_if_old_copy_removal_disconnects(monkeypatch
     assert result["uid"] == "13"
     assert result["uidvalidity"] == "555"
     assert result["warning"].startswith("Draft saved,")
+
+
+def test_html_alternative_preserves_text_bcc_and_attachments():
+    from werkzeug.datastructures import FileStorage
+    import io
+    message, sender, targets = build_message(
+        {"to": "friend@example.org", "bcc": "hidden@example.org", "subject": "Update", "body": "Open your account", "html": '<p>Open <a href="https://example.org/account">your account</a></p>'},
+        USER, [USER["email"]], [FileStorage(stream=io.BytesIO(b"notes"), filename="notes.txt")],
+    )
+    assert message.get_content_type() == "multipart/mixed"
+    alternatives = message.get_payload(0)
+    assert alternatives.get_content_type() == "multipart/alternative"
+    assert alternatives.get_payload(0).get_content_type() == "text/plain"
+    assert alternatives.get_payload(1).get_content_type() == "text/html"
+    assert "Open your account" in message.get_body(preferencelist=("plain",)).get_content()
+    assert '<a href="https://example.org/account">' in message.get_body(preferencelist=("html",)).get_content()
+    assert "hidden@example.org" in targets
+    assert list(message.iter_attachments())[0].get_filename() == "notes.txt"
+
+
+@pytest.mark.parametrize("extra", [{"body": ""}, {"html": {}}, {"html": "é" * 524289}])
+def test_html_requires_text_and_bounded_string(extra):
+    with pytest.raises(ValueError):
+        build_message({"to": "friend@example.org", "body": "Text", "html": "<p>Text</p>", **extra}, USER, [USER["email"]])

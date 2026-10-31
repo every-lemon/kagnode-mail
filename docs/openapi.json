@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "KagNode Mail API",
-    "version": "0.3.0",
+    "version": "0.5.0",
     "description": "Server/script API. Admin-issued tokens are restricted to one mailbox and explicit permissions. HTTPS required; no browser-origin requests or CORS. 120 requests per minute per token; 60 sends per hour per mailbox across web/API; native SMTP guard also enforces mailbox quota. Tokens are revoked on password changes/resets or account disablement. See api.md for lifecycle and examples.",
     "license": {
       "name": "MIT"
@@ -646,6 +646,11 @@
             "type": "string",
             "maxLength": 1048576,
             "description": "Plain text; at most 1 MiB encoded UTF-8."
+          },
+          "html": {
+            "type": "string",
+            "maxLength": 1048576,
+            "description": "Optional HTML alternative, at most 1 MiB encoded UTF-8. Requires nonempty plain-text body. Added in 0.5.0."
           }
         }
       },
@@ -715,6 +720,11 @@
             "type": "string",
             "pattern": "^[1-9][0-9]{0,9}$",
             "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
+          },
+          "html": {
+            "type": "string",
+            "maxLength": 1048576,
+            "description": "Optional HTML alternative, at most 1 MiB encoded UTF-8. Requires nonempty plain-text body. Added in 0.5.0."
           }
         }
       },

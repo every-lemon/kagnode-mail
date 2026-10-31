@@ -148,6 +148,8 @@ with sync_playwright() as p:
     page.locator(".dns-record").first.wait_for()
     page.screenshot(path=str(OUT / "dns.png"), full_page=True)
     page.locator('#form-dialog button[aria-label="Close dialog"]').click()
+    if page.locator("#sidebar-backdrop").is_visible():
+        page.locator("#sidebar-close").click()
     page.locator("#profile-button").click()
     page.get_by_role("heading", name="Mail clients", exact=True).wait_for()
     page.screenshot(path=str(OUT / "account.png"), full_page=True)
@@ -263,7 +265,7 @@ with sync_playwright() as p:
     page.locator('#toast').wait_for(state='hidden')
     page.locator('#theme-toggle').click()
     page.screenshot(path=str(OUT / "tokens-dark.png"), full_page=True)
-    assert page.locator('.token-card').first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(0, 0, 0)"
+    assert page.locator('.token-card').first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(24, 26, 30)"
     page.locator('#theme-toggle').click()
     page.set_viewport_size({"width": 390, "height": 844})
     page.screenshot(path=str(OUT / "tokens-mobile.png"), full_page=True)
@@ -337,6 +339,7 @@ with sync_playwright() as p:
         assert page.locator('.sidebar .website-link').evaluate(
             "el => {const r=el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;}"
         ), f"Sidebar bottom outside viewport at {width}px"
+        page.locator("#sidebar-close").click()
         page.locator("#profile-button").click()
         expect(page.locator("#location-page")).to_have_text("Account")
         expect(page.locator("#location-page")).to_be_visible()

@@ -49,7 +49,7 @@ curl --fail-with-body "$MAIL_URL/api/v1/send" \
   --data '{"from":"notifications@example.com","to":"recipient@example.net","subject":"Status","body":"The job finished."}'
 ```
 
-Fields are strings: `from`, `to`, `cc`, `bcc`, `subject`, and `body`. Recipient fields accept comma-separated addresses. `from` defaults to the mailbox address, which must be explicitly selected on the token when used. At least one recipient is required; total recipients are capped at 50. Bodies are plain text, at most 1 MiB; subjects at most 300 characters on one line.
+Fields are strings: `from`, `to`, `cc`, `bcc`, `subject`, `body`, and optional `html`. Recipient fields accept comma-separated addresses. `from` defaults to the mailbox address, which must be explicitly selected on the token when used. At least one recipient is required; total recipients are capped at 50. `body` is the plain-text version, at most 1 MiB encoded UTF-8. Optional `html` adds an HTML alternative (also at most 1 MiB encoded UTF-8) and requires a nonempty `body`. Both versions are delivered in a multipart/alternative message; clients choose which to display. HTML does not change sender permissions or submission outcomes. Subjects contain at most 300 characters on one line.
 
 For attachments, use multipart form data with the same fields and repeat the `attachments` field:
 

@@ -71,3 +71,11 @@ The tests do not prove public delivery, inbox placement, resistance to every att
 Plain-text composition and reading (HTML-only mail is converted to text); no rich-text editor, message-thread grouping, contacts/calendar, rules/Sieve editor, or full-text index. Mail search currently accepts ASCII text. No SMTPUTF8, POP3, SMTP 465, MFA, or outbound-relay setup wizard. Administrative IP changes update instructions rather than provider DNS or network interfaces. Existing IMAP sessions require `doveadm kick` for immediate revocation. Web sends can have uncertain outcomes after an SMTP timeout; retry only after checking.
 
 The initial installer manages a dedicated host and refuses preexisting mail data/configuration. Cross-version database migrations, automated uninstall, and unattended app upgrades are outside this release. See the operations guide for deliberate update and recovery procedures.
+
+## Release checks — 0.5.0, 2026-10-31
+
+- Mail adapter and Token API: **90 passed**, including HTML/text MIME alternatives, attachment composition, UTF-8 limits, sender authorization and uncertain outcomes.
+- Application, origin, proxy, transport and installer regression: **104 passed**. Disposable databases ran on tmpfs after local disk journal stalls caused slow test setup.
+- Browser acceptance passed reading, composing, sender selection, error recovery, admin password confirmation, API token replacement/revocation, keyboard navigation and mobile menus.
+- **44** extra layout checks passed: mailbox, reader, composer and account at 320, 390, 768, 1024 and 1440 pixels in both themes, plus four widths for the account email design.
+- These checks use fictional accounts and mock delivery. No messages were sent to real recipients. Native SMTP/IMAP settings and certificate synchronization are outside this source-only update and are retained.

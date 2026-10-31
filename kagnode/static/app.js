@@ -13,6 +13,7 @@ const state = {
   tokens: null,
   demo: false,
   login_allowed: false,
+  listFilter: 'all',
   generation: 0
 };
 const folders = [
@@ -304,12 +305,13 @@ async function route() {
   document.title = (folders.find(f => f[0] === page)?.[1] || adminPages.find(f => f[0] === page)?.[1] || 'Account') + ' · KagNode Mail';
   if (folders.some(f => f[0] === page)) {
     state.folder = page;
+    state.listFilter = 'all';
     state.page = 1;
     state.current = null;
     $('#mail-search').value = '';
     $('#mail-view').classList.remove('reading');
     heading(folders.find(f => f[0] === page)[1]);
-    $('#message-reader').replaceChildren(blank('Select a message'));
+    $('#message-reader').replaceChildren(blank('Your messages, in focus', 'Select a message to read it here. Reply, save attachments, or keep your inbox organized.', 'inbox'));
     await loadMessages();
   } else if (page === 'account') {
     renderAccount();
@@ -342,7 +344,7 @@ async function route() {
 }
 async function loadMessages() {
   const gen = ++state.generation;
-  $('#message-list').replaceChildren(blank('Loading…'));
+  $('#message-list').replaceChildren(mailSkeleton());
   try {
     const r = await api('/messages?' + new URLSearchParams({
       folder: state.folder,
@@ -371,9 +373,20 @@ async function loadMessages() {
   }
 }
 
+function mailSkeleton() {
+  const box=el('div',{class:'mail-skeleton',role:'status','aria-label':'Loading messages'});
+  for(let i=0;i<5;i++)box.append(el('div',{},el('span'),el('span'),el('span')));
+  return box;
+}
+for(const control of document.querySelectorAll('[data-mail-filter]'))control.addEventListener('click',()=>{
+  state.listFilter=control.dataset.mailFilter;renderList();
+});
 function renderList() {
-  const nodes = state.messages.map(m => {
+  for(const control of document.querySelectorAll('[data-mail-filter]'))control.setAttribute('aria-pressed',String(control.dataset.mailFilter===state.listFilter));
+  const visible=state.messages.filter(m=>state.listFilter==='all'||!!m[state.listFilter]);
+  const nodes = visible.map(m => {
     const n = el('button', {
+      'aria-pressed': String(state.current?.uid === m.uid),
       class: 'message-row' + (m.unread ? ' unread' : '') + (state.current?.uid === m.uid ? ' selected' : ''),
       onclick: () => openMessage(m.uid)
     }, m.unread ? el('span', {
@@ -396,7 +409,7 @@ function renderList() {
     }, 'Starred')));
     return n;
   });
-  $('#message-list').replaceChildren(...(nodes.length ? nodes : [blank('No messages')]));
+  $('#message-list').replaceChildren(...(nodes.length ? nodes : [blank(state.messages.length?'No '+state.listFilter+' messages on this page':'No messages',state.messages.length?'Choose All or move to another page.':'New messages will appear here.','inbox')]));
 }
 async function openMessage(uid) {
   const folder = state.folder;
@@ -405,7 +418,7 @@ async function openMessage(uid) {
   };
   renderList();
   $('#mail-view').classList.add('reading');
-  $('#message-reader').replaceChildren(blank('Loading…'));
+  $('#message-reader').replaceChildren(mailSkeleton());
   try {
     const m = await api(`/messages/${uid}?folder=${encodeURIComponent(folder)}`);
     if (state.folder !== folder || state.current?.uid !== uid) return;
@@ -415,7 +428,10 @@ async function openMessage(uid) {
     renderList();
     renderReader(m);
   } catch (e) {
-    $('#message-reader').replaceChildren(blank('Could not open this message.', e.message));
+    if (state.folder !== folder || state.current?.uid !== uid) return;
+    const notice=blank('Could not open this message.', e.message);
+    notice.append(button('Try again',()=>openMessage(uid),'button','refresh'));
+    $('#message-reader').replaceChildren(notice);
   }
 }
 
@@ -495,7 +511,7 @@ async function mailAction(action) {
       if (m && action.includes('star')) renderReader(state.current);
     } else {
       state.current = null;
-      $('#message-reader').replaceChildren(blank('Select a message'));
+      $('#message-reader').replaceChildren(blank('Your messages, in focus', 'Select a message to read it here. Reply, save attachments, or keep your inbox organized.', 'inbox'));
       $('#mail-view').classList.remove('reading');
     }
   } catch (e) {

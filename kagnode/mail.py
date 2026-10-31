@@ -105,7 +105,7 @@ def recipients(value):
 def build_message(data, user, allowed, attachments=(), draft=False):
     if any(
         not isinstance(data.get(k, ""), str)
-        for k in ("from", "to", "cc", "bcc", "subject", "body")
+        for k in ("from", "to", "cc", "bcc", "subject", "body", "html")
     ):
         raise ValueError("Message fields must be text.")
     try:
@@ -130,6 +130,11 @@ def build_message(data, user, allowed, attachments=(), draft=False):
     body = data.get("body", "")
     if len(body.encode()) > 1024 * 1024:
         raise ValueError("Message text is too large.")
+    html = data.get("html", "")
+    if len(html.encode()) > 1024 * 1024:
+        raise ValueError("Message HTML is too large.")
+    if html and not body.strip():
+        raise ValueError("Include a plain-text body with HTML messages.")
     msg = EmailMessage(policy=policy.SMTP)
     msg["From"] = sender
     msg["To"] = ", ".join(to) if to else "undisclosed-recipients:;"
@@ -141,6 +146,8 @@ def build_message(data, user, allowed, attachments=(), draft=False):
     msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = make_msgid(domain=sender.split("@")[1])
     msg.set_content(body)
+    if html:
+        msg.add_alternative(html, subtype="html")
     msg._kagnode_bcc = bcc
     total = 0
     for index, item in enumerate(attachments):
