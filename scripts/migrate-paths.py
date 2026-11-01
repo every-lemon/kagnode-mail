@@ -20,6 +20,20 @@ def digest(path):
         else:raise RuntimeError('Unsupported socket/device in '+relative+'; stop the service first.')
     return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
 
+
+def make_destination_parents(path):
+    """New shared ancestors must remain traversable under a private root umask.
+
+    Copied project directories keep their original modes. Existing ancestors
+    are deliberately left alone: their permissions may be administrator policy.
+    """
+    missing=[]
+    while not path.exists():
+        missing.append(path);path=path.parent
+    for parent in reversed(missing):
+        parent.mkdir(mode=0o755)
+        parent.chmod(0o755)
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root',type=Path,default=Path('/'),help='Alternate root for disposable fixture testing')
@@ -100,7 +114,7 @@ def main():
             record['stage']='copying';save()
         if record['stage']=='copying':
             if dst.is_symlink():raise RuntimeError('Destination cannot be a symlink.')
-            dst.parent.mkdir(parents=True,exist_ok=True)
+            make_destination_parents(dst.parent)
             # cp -a preserves file owners, modes, timestamps and links. Retry merges
             # only this journal's interrupted copy, never an unrelated destination.
             dst.mkdir(exist_ok=True)

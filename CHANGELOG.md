@@ -1,3 +1,7 @@
+# 1.0.1
+
+Fix project-path migration from a root console using `umask 077`: new shared parent directories permit service traversal, while copied private files and existing directory permissions are preserved. Add regression checks for that boundary. Account, mailbox and mail-delivery behavior are unchanged.
+
 # 1.0.0
 
 First stable KagNode Mail release for Ubuntu 24.04. Includes the server-only Token API, plain-text and HTML account emails, responsive webmail, DNS guidance, and public website links from the shared service URL configuration. GitHub artwork now adapts to light and dark backgrounds. Existing account, mailbox and token data stay in their project-scoped locations. See [release scope](docs/validation.md) and [migration instructions](PATHS.md).
