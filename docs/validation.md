@@ -1,8 +1,14 @@
 # Validation and release scope
 
-KagNode Mail 0.3.0 targets native **Ubuntu Server 24.04**. It has no independent security certification; external deliverability requires testing with a real domain and provider-owned public IP.
+KagNode Mail 1.0.0 targets native **Ubuntu Server 24.04**. It has no independent security certification; external deliverability requires testing with a real domain and provider-owned public IP.
 
-## Release checks — 2026-10-30
+## 1.0.0 acceptance
+
+The current application suite passes 196 checks, including token and mailbox access boundaries, secure login handling and public-only website URL configuration. The release also requires the native-mail job and browser checks in [CI](https://github.com/every-lemon/kagnode-mail/actions/workflows/test.yml). External recipient delivery is a deployment check, not guaranteed by releasing this package.
+
+Existing installations must follow PATHS.md; replacing application files does not migrate an older database or mail configuration. Historical test evidence below remains labeled with its original scope.
+
+## Earlier release checks — 2026-10-30
 
 | Check | Result |
 | --- | --- |

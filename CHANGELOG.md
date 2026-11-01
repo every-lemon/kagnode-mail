@@ -1,3 +1,7 @@
+# 1.0.0
+
+First stable KagNode Mail release for Ubuntu 24.04. Includes the server-only Token API, plain-text and HTML account emails, responsive webmail, DNS guidance, and public website links from the shared service URL configuration. GitHub artwork now adapts to light and dark backgrounds. Existing account, mailbox and token data stay in their project-scoped locations. See [release scope](docs/validation.md) and [migration instructions](PATHS.md).
+
 # 0.4.0
 
 KagNode branding, project-scoped path defaults and an explicit migration tool. Source history and prior releases are retained. See PATHS.md and LICENSES/.

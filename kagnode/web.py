@@ -5,6 +5,7 @@ import hmac
 import imaplib
 import io
 import ipaddress
+from urllib.parse import urlsplit
 import json
 import os
 import secrets
@@ -48,6 +49,33 @@ class BoundedRequest(Request):
                 else 2 * 1024 * 1024
             )
         return 64 * 1024
+
+
+def kagnode_website_url():
+    """Read a public-only URL file; no tokens or local Operator address."""
+    value = os.environ.get("KAGNODE_WEBSITE_URL", "https://nebulacoder.com")
+    filename = os.environ.get("KAGNODE_SERVICE_LINKS_FILE")
+    if filename:
+        try:
+            with open(filename, encoding="utf-8") as source:
+                value = json.load(source)["public"]
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    try:
+        url = urlsplit(value)
+        if (not isinstance(value, str) or any(ch.isspace() for ch in value) or "\\" in value
+                or url.scheme != "https" or not url.hostname or "." not in url.hostname
+                or url.hostname.rsplit(".", 1)[-1].isdigit()
+                or url.username or url.password or url.path not in ("", "/")
+                or url.query or url.fragment or url.hostname.endswith((".local", ".lan", ".localhost"))):
+            raise ValueError("Invalid public origin")
+        try:
+            ipaddress.ip_address(url.hostname)
+        except ValueError:
+            return value.rstrip("/")
+    except (ValueError, TypeError):
+        pass
+    return "https://nebulacoder.com"
 
 
 def create_app(overrides=None):
@@ -269,7 +297,7 @@ def create_app(overrides=None):
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", kagnode_website=kagnode_website_url())
 
     @app.get("/api/session")
     def current_session():

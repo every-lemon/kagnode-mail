@@ -1,4 +1,4 @@
-<p align="center"><img src="https://raw.githubusercontent.com/every-lemon/kagnode-logos/main/svg/mail-light.svg" width="440" alt="KagNode. Mail"></p>
+<p align="center"><img src="assets/kagnode-wordmark.svg" width="440" alt="KagNode. Mail"></p>
 
 # KagNode Mail
 
@@ -10,7 +10,7 @@ Open source mail server for Ubuntu Server 24.04, with webmail and administration
 
 KagNode Mail installs Postfix, Dovecot, OpenDKIM, nginx, and a small Python application. SQLite keeps accounts and permissions; Maildir stores messages. No Docker, Node.js runtime, Redis, external fonts, analytics, or database server is required on your mail host.
 
-This is the **0.5.0 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
+This is the **1.0.0 release**. This release uses project-scoped paths; existing installations require the separately reviewed migration in [PATHS.md](PATHS.md). Review [validation and limitations](docs/validation.md) before putting it on the public internet. Public mail delivery also depends on your IP reputation, provider rules, DNS, and open port 25.
 
 ## What works
 
@@ -147,7 +147,7 @@ Compose validates external recipients separately from hosted mailbox names, acce
 
 Phone and tablet inboxes have a Compose button beside Refresh. Opening the composer closes the navigation drawer so returning to mail leaves the inbox visible. Existing sidebar and keyboard shortcuts use the same composer.
 
-## KagNode 0.5.0
+## KagNode 1.0.0
 
 - A clearer reading workspace, top-right account settings, responsive composer and message skeletons. Unread and starred filters apply to the current page and retain folder search.
 - The server Token API accepts optional HTML with a required plain-text alternative. Existing sender permissions, per-recipient results and uncertain-send handling remain unchanged. Webmail continues to display safe text and block remote content from received messages.
