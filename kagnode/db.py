@@ -39,6 +39,12 @@ BEGIN
  backend_password='',backend_hash='' WHERE user_id=NEW.id;
 END;
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, count INTEGER NOT NULL, until INTEGER NOT NULL);
+CREATE TRIGGER IF NOT EXISTS invalidate_web_sessions_on_account_change
+AFTER UPDATE OF password,active,admin ON users
+WHEN NEW.password != OLD.password OR NEW.active = 0 OR NEW.admin != OLD.admin
+BEGIN
+ DELETE FROM sessions WHERE user_id=NEW.id;
+END;
 CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires);
 CREATE INDEX IF NOT EXISTS throttle_expiry ON throttle(until);
 CREATE TABLE IF NOT EXISTS audit (

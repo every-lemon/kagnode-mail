@@ -224,7 +224,7 @@ def create_app(overrides=None):
                 return jsonify(error="Request body must be a JSON object."), 400
             expected = g.auth["csrf"] if g.user else session.get("csrf", "")
             provided = request.headers.get("X-CSRF-Token", "")
-            if not expected or not hmac.compare_digest(expected, provided):
+            if not expected or not hmac.compare_digest(expected.encode(), provided.encode()):
                 return jsonify(
                     error="This page has expired. Refresh and try again."
                 ), 403
@@ -343,6 +343,11 @@ def create_app(overrides=None):
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         conn = getdb()
         with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            latest = conn.execute("SELECT * FROM users WHERE id=? AND active=1", (u["id"],)).fetchone()
+            if latest is None or latest["password"] != u["password"]:
+                return jsonify(error="Email or password is incorrect."), 401
+            u = latest
             conn.execute("DELETE FROM sessions WHERE expires<?", (int(time.time()),))
             if g.auth:
                 conn.execute("DELETE FROM sessions WHERE token=?", (g.auth["token"],))
@@ -380,6 +385,11 @@ def create_app(overrides=None):
             return jsonify(error="Password is incorrect."), 403
         token = secrets.token_urlsafe(32)
         with getdb() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            latest = conn.execute("SELECT password FROM users WHERE id=? AND active=1", (g.user["id"],)).fetchone()
+            current = conn.execute("SELECT 1 FROM sessions WHERE token=? AND expires>?", (g.auth["token"], int(time.time()))).fetchone()
+            if latest is None or latest["password"] != g.user["password"] or current is None:
+                return jsonify(error="Session changed. Sign in again."), 401
             conn.execute(
                 "UPDATE sessions SET token=?,password=? WHERE token=?",
                 (

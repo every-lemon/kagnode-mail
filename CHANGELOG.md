@@ -1,3 +1,9 @@
+# 1.0.2
+
+- Recheck credentials under a database lock before issuing or refreshing web sessions.
+- Revoke web sessions at the database boundary on password, disablement, or administrator-role changes.
+- Reject malformed CSRF tokens without string-encoding errors.
+
 # 1.0.1
 
 Fix project-path migration from a root console using `umask 077`: new shared parent directories permit service traversal, while copied private files and existing directory permissions are preserved. Add regression checks for that boundary. Account, mailbox and mail-delivery behavior are unchanged.
