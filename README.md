@@ -152,3 +152,16 @@ Phone and tablet inboxes have a Compose button beside Refresh. Opening the compo
 - A clearer reading workspace, top-right account settings, responsive composer and message skeletons. Unread and starred filters apply to the current page and retain folder search.
 - The server Token API accepts optional HTML with a required plain-text alternative. Existing sender permissions, per-recipient results and uncertain-send handling remain unchanged. Webmail continues to display safe text and block remote content from received messages.
 - Updating an existing 0.4.5 installation needs matching application files and a web-service restart; this release adds no database or native mail configuration migration. Retain the existing environment, API tokens, mailboxes and TLS certificate synchronization.
+
+
+UI assets
+---------
+The interface uses the shared KagNode black/white/blue design. Browser assets are minified and content-fingerprinted at build time; source maps are not published. Readable source and required license notices stay in this repository. Branding and hashes discourage casual reuse; they do not prevent inspection or copying.
+
+To rebuild, install esbuild 0.28.2 as a development tool, then run:
+
+```sh
+ESBUILD=/path/to/esbuild python3 scripts/build-web.py --package kagnode --product Mail
+```
+
+Generated assets and their private package manifest ship with the application. Node.js is not required on the server.

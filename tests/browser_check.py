@@ -265,7 +265,7 @@ with sync_playwright() as p:
     page.locator('#toast').wait_for(state='hidden')
     page.locator('#theme-toggle').click()
     page.screenshot(path=str(OUT / "tokens-dark.png"), full_page=True)
-    assert page.locator('.token-card').first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(24, 26, 30)"
+    assert page.locator('.token-card').first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(25, 25, 25)"
     page.locator('#theme-toggle').click()
     page.set_viewport_size({"width": 390, "height": 844})
     page.screenshot(path=str(OUT / "tokens-mobile.png"), full_page=True)

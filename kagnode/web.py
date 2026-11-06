@@ -80,6 +80,8 @@ def kagnode_website_url():
 
 def create_app(overrides=None):
     app = Flask(__name__)
+    from .web_assets import register_assets
+    register_assets(app)
     app.request_class = BoundedRequest
     app.config.update(
         DATABASE="/var/lib/kagnode/mail/directory.sqlite3",

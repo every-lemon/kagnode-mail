@@ -1,3 +1,9 @@
+# 1.1.0
+
+- Shared KagNode product styling, mobile controls, and persistent product branding.
+- Prebuilt, fingerprinted UI assets with minified aliases and no source maps.
+- Existing account data, credentials, and API behavior are retained.
+
 # 1.0.2
 
 - Recheck credentials under a database lock before issuing or refreshing web sessions.

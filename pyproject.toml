@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kagnode-mail"
-version = "1.0.2"
+version = "1.1.0"
 description = "KagNode Mail — a lightweight open source mail server for Ubuntu 24.04"
 requires-python = ">=3.12,<3.13"
 license = {text = "AGPL-3.0-only"}
@@ -17,7 +17,7 @@ test = ["pytest>=8,<10", "playwright>=1.48,<2"]
 include = ["kagnode*"]
 
 [tool.setuptools.package-data]
-kagnode = ["templates/*.html", "static/*"]
+kagnode = ["templates/*.html", "static/*", "static/built/*", "web-assets.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
