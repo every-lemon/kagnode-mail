@@ -1,0 +1,8 @@
+{
+  "repository": "kagnode-mail",
+  "version_file": "pyproject.toml",
+  "version_pattern": "version = \"([^\"]+)\"",
+  "kind": "application",
+  "license": "AGPL-3.0-only",
+  "revision": 1
+}

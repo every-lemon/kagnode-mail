@@ -14,7 +14,8 @@ CANONICAL = "https://mail.example.com/"
 
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(
-        headless=True, args=["--no-sandbox"],
+        headless=True,
+        args=["--no-sandbox"],
         executable_path=os.environ.get("KAGNODE_BROWSER_EXECUTABLE") or None,
     )
     context = browser.new_context(viewport={"width": 390, "height": 844})
@@ -23,23 +24,43 @@ with sync_playwright() as playwright:
     failures = []
     submissions = []
     page.on("pageerror", lambda error: failures.append(str(error)))
-    page.on("request", lambda request: submissions.append(request.url)
-            if request.method == "POST" and request.url.endswith("/api/login") else None)
-    blocked = {"user": None, "csrf": "preview-csrf", "demo": False, "identities": [],
-               "hostname": "mail.example.com", "login_url": CANONICAL, "login_allowed": False}
-    page.route("**/api/session", lambda route: route.fulfill(
-        content_type="application/json", body=json.dumps(blocked)))
+    page.on(
+        "request",
+        lambda request: submissions.append(request.url)
+        if request.method == "POST" and request.url.endswith("/api/login")
+        else None,
+    )
+    blocked = {
+        "user": None,
+        "csrf": "preview-csrf",
+        "demo": False,
+        "identities": [],
+        "hostname": "mail.example.com",
+        "login_url": CANONICAL,
+        "login_allowed": False,
+    }
+    page.route(
+        "**/api/session",
+        lambda route: route.fulfill(
+            content_type="application/json", body=json.dumps(blocked)
+        ),
+    )
     page.goto(BASE)
     expect(page.locator("#login-access")).to_be_visible()
     expect(page.locator("#login-form")).to_be_hidden()
-    expect(page.locator('#login-form [name=password]')).to_be_disabled()
+    expect(page.locator("#login-form [name=password]")).to_be_disabled()
     expect(page.locator("#secure-login-link")).to_have_attribute("href", CANONICAL)
     for width in (320, 390, 1440):
         page.set_viewport_size({"width": width, "height": 844})
-        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), page.evaluate("({width: innerWidth, overflow: [...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth).map(e=>[e.tagName,e.id,e.className,e.getBoundingClientRect().width])})")
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (
+            page.evaluate(
+                "({width: innerWidth, overflow: [...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth).map(e=>[e.tagName,e.id,e.className,e.getBoundingClientRect().width])})"
+            )
+        )
     page.set_viewport_size({"width": 390, "height": 844})
     page.locator("#login-form").evaluate(
-        "form => form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))")
+        "form => form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))"
+    )
     page.wait_for_timeout(100)
     assert submissions == [], "Blocked entry point submitted credentials"
     assert page.url.rstrip("/") == BASE
@@ -60,7 +81,9 @@ with sync_playwright() as playwright:
 
     page.route(CANONICAL + "**", canonical_route)
     page.goto(CANONICAL)
-    expect(page.locator("#login-access-message")).to_contain_text("proxy’s HTTPS settings")
+    expect(page.locator("#login-access-message")).to_contain_text(
+        "proxy’s HTTPS settings"
+    )
     expect(page.locator("#secure-login-link")).to_be_hidden()
     expect(page.locator("#login-form")).to_be_hidden()
     assert page.url == CANONICAL
@@ -72,12 +95,14 @@ with sync_playwright() as playwright:
     page.goto(BASE)
     expect(page.locator("#login-form")).to_be_visible()
     expect(page.locator("#login-access")).to_be_hidden()
-    page.locator('#login-form [name=email]').fill("alex@example.com")
-    page.locator('#login-form [name=password]').fill("KagNodePreview2026!")
-    page.locator('#login-form button[type=submit]').click()
+    page.locator("#login-form [name=email]").fill("alex@example.com")
+    page.locator("#login-form [name=password]").fill("KagNodePreview2026!")
+    page.locator("#login-form button[type=submit]").click()
     expect(page.locator("#workspace")).to_be_visible(timeout=30000)
     page.locator(".message-row").first.wait_for()
     assert len(submissions) == 1
     assert not failures, failures
     browser.close()
-    print("Login browser checks passed: blocked HTTP entry, no credential submission or redirect, proxy configuration feedback, responsive layout, and normal demo login.")
+    print(
+        "Login browser checks passed: blocked HTTP entry, no credential submission or redirect, proxy configuration feedback, responsive layout, and normal demo login."
+    )

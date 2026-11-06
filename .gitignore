@@ -21,3 +21,10 @@ dist/
 review/
 
 docs/screenshots/*-check.png
+
+# Repository release tooling
+dist/
+.build/
+.ruff_cache/
+__pycache__/
+*.pyc

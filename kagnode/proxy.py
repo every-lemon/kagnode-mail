@@ -16,16 +16,23 @@ class TrustedProxyFix:
             try:
                 address = ipaddress.ip_address(value)
             except ValueError as exc:
-                raise ValueError("TRUSTED_PROXIES must contain exact IP addresses, without CIDR ranges.") from exc
+                raise ValueError(
+                    "TRUSTED_PROXIES must contain exact IP addresses, without CIDR ranges."
+                ) from exc
             if address.is_unspecified or address.is_multicast:
-                raise ValueError("TRUSTED_PROXIES must identify individual proxy peers.")
+                raise ValueError(
+                    "TRUSTED_PROXIES must identify individual proxy peers."
+                )
             addresses.add(address)
         self.trusted_proxies = frozenset(addresses)
         self.app = ProxyFix(app, x_for=1, x_proto=1, x_host=0)
 
     def __call__(self, environ, start_response):
         try:
-            trusted = ipaddress.ip_address(environ.get("REMOTE_ADDR", "")) in self.trusted_proxies
+            trusted = (
+                ipaddress.ip_address(environ.get("REMOTE_ADDR", ""))
+                in self.trusted_proxies
+            )
         except ValueError:
             trusted = False
         if not trusted:
@@ -33,7 +40,8 @@ class TrustedProxyFix:
             # supplied by a direct client must not change either one.
             for name in list(environ):
                 if name.startswith("HTTP_X_FORWARDED_") or name in (
-                    "HTTP_FORWARDED", "HTTP_X_REAL_IP",
+                    "HTTP_FORWARDED",
+                    "HTTP_X_REAL_IP",
                 ):
                     del environ[name]
         return self.app(environ, start_response)

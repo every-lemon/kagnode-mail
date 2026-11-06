@@ -480,16 +480,35 @@ def test_get_accepts_json_content_type_without_body(client, token, mail):
 
 
 def test_token_html_submission_and_draft_keep_plain_alternative(client, token, mail):
-    payload = {"to": "friend@example.org", "subject": "Account", "body": "Account update", "html": "<h1>Account update</h1>"}
+    payload = {
+        "to": "friend@example.org",
+        "subject": "Account",
+        "body": "Account update",
+        "html": "<h1>Account update</h1>",
+    }
     result = client.post("/api/v1/send", headers=bearer(token), json=payload)
     assert result.status_code == 202
     message = mail.send.call_args.args[2]
-    assert message.get_body(preferencelist=("html",)).get_content().strip() == payload["html"]
-    assert message.get_body(preferencelist=("plain",)).get_content().strip() == payload["body"]
+    assert (
+        message.get_body(preferencelist=("html",)).get_content().strip()
+        == payload["html"]
+    )
+    assert (
+        message.get_body(preferencelist=("plain",)).get_content().strip()
+        == payload["body"]
+    )
     result = client.post("/api/v1/drafts", headers=bearer(token), json=payload)
     assert result.status_code == 201
     message = mail.draft.call_args.args[2]
-    assert message.get_body(preferencelist=("html",)).get_content().strip() == payload["html"]
+    assert (
+        message.get_body(preferencelist=("html",)).get_content().strip()
+        == payload["html"]
+    )
     for extra in [{"body": ""}, {"html": []}, {"html": "a" * 1048577}]:
-        assert client.post("/api/v1/send", headers=bearer(token), json={**payload, **extra}).status_code == 400
+        assert (
+            client.post(
+                "/api/v1/send", headers=bearer(token), json={**payload, **extra}
+            ).status_code
+            == 400
+        )
     assert mail.send.call_count == 1

@@ -55,3 +55,54 @@ The installer refuses earlier Morrow installations; automatic migration is not p
 ## 0.1.0 — 2026-10-29
 
 Initial native Ubuntu 24.04 implementation: installer and dry-run renderer; Postfix/Dovecot/OpenDKIM stack; custom responsive webmail; admin/member roles; account/alias/domain management; backend-enforced sender grants; DNS guidance; TLS and certificate renewal; session and abuse controls; read-only preview; backup/recovery tools; Python, browser, and real-mail integration tests.
+
+## Historical README release notes
+
+## KagNode 0.4 release
+
+The Mail server is an independent, self-hosted open-source project. Its webmail remains available to mailbox users. KagNode's main and Developer websites use only the server-side send API for account and workflow emails; they do not expose a mailbox. The hosted KagNode cloud products remain planned.
+
+New installations use `/opt/kagnode/mail`, `/etc/kagnode/mail` and `/var/lib/kagnode/mail`. Existing installations require the explicit, verified migration in [PATHS.md](PATHS.md); this release does not migrate a running server. Keep upstream Postfix, Dovecot, OpenDKIM and Maildir paths and their permissions. The existing 0.2-to-0.3 database/mail-configuration migration requirement still applies.
+
+Current combined releases and new original work: **AGPL-3.0-only**, with retained MIT legacy and third-party notices in `LICENSES/` and `THIRD_PARTY_NOTICES.md`. Prior MIT grants remain valid. [Brand policy](BRAND-POLICY.md) is separate from software rights.
+
+[KagNode](https://nebulacoder.com) · [Developer](https://developer.nebulacoder.com) · [Logo assets](https://github.com/every-lemon/kagnode-logos)
+
+## KagNode 0.4.1
+
+The configuration renderer supports a separate Mail service identity, read group, certificate directory, and one explicitly trusted reverse proxy. These options support reviewed installations alongside existing KagNode websites; the standard installer continues to require a fresh, dedicated host. See [cohosted configuration](docs/operations.md#reviewed-cohosted-configuration).
+
+## KagNode 0.4.2
+
+Navigation keeps mailbox and administration destinations in their own scroll area, with account controls and one KagNode Website link anchored below. Current destinations remain visible in the sidebar and quick navigation. The compact footer keeps source and license links beside the content; tablet and phone layouts use a navigation drawer. Mail protocols, API permissions and delivery behavior are unchanged. Explicit `TRUSTED_PROXIES` validation protects client addresses and HTTPS checks when an installation deliberately exposes its web listener to a LAN reverse proxy; see [operations](docs/operations.md).
+
+## KagNode 0.4.3
+
+Opening Mail through a direct HTTP/IP address now explains how to reach secure sign-in before asking for a password. Only the configured HTTPS Mail origin offers the production sign-in form. An incorrect proxy scheme gets a specific configuration message. Origin checks, CSRF, and secure session cookies remain enforced.
+
+## KagNode 0.4.4
+
+Compose validates external recipients separately from hosted mailbox names, accepting valid punctuation, quoted addresses, display names, and trailing commas. Invalid recipients identify the To, Cc, or Bcc field and prevent submission of the entire list. Mailbox connection failures show a direct explanation and a Try again button; send failures retain the warning to check delivery before retrying.
+
+## KagNode 0.4.5
+
+Phone and tablet inboxes have a Compose button beside Refresh. Opening the composer closes the navigation drawer so returning to mail leaves the inbox visible. Existing sidebar and keyboard shortcuts use the same composer.
+
+## KagNode 1.0.1
+
+- A clearer reading workspace, top-right account settings, responsive composer and message skeletons. Unread and starred filters apply to the current page and retain folder search.
+- The server Token API accepts optional HTML with a required plain-text alternative. Existing sender permissions, per-recipient results and uncertain-send handling remain unchanged. Webmail continues to display safe text and block remote content from received messages.
+- Updating an existing 0.4.5 installation needs matching application files and a web-service restart; this release adds no database or native mail configuration migration. Retain the existing environment, API tokens, mailboxes and TLS certificate synchronization.
+
+
+UI assets
+---------
+The interface uses the shared KagNode black/white/blue design. Browser assets are minified and content-fingerprinted at build time; source maps are not published. Readable source and required license notices stay in this repository. Branding and hashes discourage casual reuse; they do not prevent inspection or copying.
+
+To rebuild, install esbuild 0.28.2 as a development tool, then run:
+
+```sh
+ESBUILD=/path/to/esbuild python3 scripts/build-web.py --package kagnode --product Mail
+```
+
+Generated assets and their private package manifest ship with the application. Node.js is not required on the server.

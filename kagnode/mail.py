@@ -86,15 +86,21 @@ def recipients(value):
             raise ValueError
         parsed = header.addresses
     except (ValueError, IndexError, HeaderParseError):
-        raise ValueError("Enter complete email addresses separated by commas.") from None
+        raise ValueError(
+            "Enter complete email addresses separated by commas."
+        ) from None
     if len(parsed) > 50:
         raise ValueError("Send to at most 50 recipients at a time.")
     result = []
     for item in parsed:
         if not item.username or not item.domain:
-            raise ValueError("Enter a complete recipient address, such as name@example.com.")
+            raise ValueError(
+                "Enter a complete recipient address, such as name@example.com."
+            )
         if not item.username.isascii():
-            raise ValueError("Recipient addresses must use ASCII characters; SMTPUTF8 is not supported.")
+            raise ValueError(
+                "Recipient addresses must use ASCII characters; SMTPUTF8 is not supported."
+            )
         target = Address(username=item.username, domain=domain(item.domain)).addr_spec
         if len(item.username) > 64 or len(target) > 254:
             raise ValueError("Recipient address is too long.")

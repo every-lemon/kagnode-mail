@@ -63,11 +63,21 @@ def kagnode_website_url():
             pass
     try:
         url = urlsplit(value)
-        if (not isinstance(value, str) or any(ch.isspace() for ch in value) or "\\" in value
-                or url.scheme != "https" or not url.hostname or "." not in url.hostname
-                or url.hostname.rsplit(".", 1)[-1].isdigit()
-                or url.username or url.password or url.path not in ("", "/")
-                or url.query or url.fragment or url.hostname.endswith((".local", ".lan", ".localhost"))):
+        if (
+            not isinstance(value, str)
+            or any(ch.isspace() for ch in value)
+            or "\\" in value
+            or url.scheme != "https"
+            or not url.hostname
+            or "." not in url.hostname
+            or url.hostname.rsplit(".", 1)[-1].isdigit()
+            or url.username
+            or url.password
+            or url.path not in ("", "/")
+            or url.query
+            or url.fragment
+            or url.hostname.endswith((".local", ".lan", ".localhost"))
+        ):
             raise ValueError("Invalid public origin")
         try:
             ipaddress.ip_address(url.hostname)
@@ -81,6 +91,7 @@ def kagnode_website_url():
 def create_app(overrides=None):
     app = Flask(__name__)
     from .web_assets import register_assets
+
     register_assets(app)
     app.request_class = BoundedRequest
     app.config.update(
@@ -226,7 +237,9 @@ def create_app(overrides=None):
                 return jsonify(error="Request body must be a JSON object."), 400
             expected = g.auth["csrf"] if g.user else session.get("csrf", "")
             provided = request.headers.get("X-CSRF-Token", "")
-            if not expected or not hmac.compare_digest(expected.encode(), provided.encode()):
+            if not expected or not hmac.compare_digest(
+                expected.encode(), provided.encode()
+            ):
                 return jsonify(
                     error="This page has expired. Refresh and try again."
                 ), 403
@@ -346,7 +359,9 @@ def create_app(overrides=None):
         conn = getdb()
         with conn:
             conn.execute("BEGIN IMMEDIATE")
-            latest = conn.execute("SELECT * FROM users WHERE id=? AND active=1", (u["id"],)).fetchone()
+            latest = conn.execute(
+                "SELECT * FROM users WHERE id=? AND active=1", (u["id"],)
+            ).fetchone()
             if latest is None or latest["password"] != u["password"]:
                 return jsonify(error="Email or password is incorrect."), 401
             u = latest
@@ -388,9 +403,18 @@ def create_app(overrides=None):
         token = secrets.token_urlsafe(32)
         with getdb() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            latest = conn.execute("SELECT password FROM users WHERE id=? AND active=1", (g.user["id"],)).fetchone()
-            current = conn.execute("SELECT 1 FROM sessions WHERE token=? AND expires>?", (g.auth["token"], int(time.time()))).fetchone()
-            if latest is None or latest["password"] != g.user["password"] or current is None:
+            latest = conn.execute(
+                "SELECT password FROM users WHERE id=? AND active=1", (g.user["id"],)
+            ).fetchone()
+            current = conn.execute(
+                "SELECT 1 FROM sessions WHERE token=? AND expires>?",
+                (g.auth["token"], int(time.time())),
+            ).fetchone()
+            if (
+                latest is None
+                or latest["password"] != g.user["password"]
+                or current is None
+            ):
                 return jsonify(error="Session changed. Sign in again."), 401
             conn.execute(
                 "UPDATE sessions SET token=?,password=? WHERE token=?",

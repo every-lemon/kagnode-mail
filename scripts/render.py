@@ -32,20 +32,20 @@ def validate(domain, hostname, ipv4, ipv6, admin):
 
 def render(a):
     validate(a.domain, a.hostname, a.ipv4, a.ipv6, a.admin)
-    service_user = getattr(a, 'service_user', 'kagnode')
-    read_group = getattr(a, 'read_group', 'kagnode-read')
+    service_user = getattr(a, "service_user", "kagnode")
+    read_group = getattr(a, "read_group", "kagnode-read")
     for name in (service_user, read_group):
-        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,30}', name):
-            raise ValueError('Use a valid service account and read-group name.')
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,30}", name):
+            raise ValueError("Use a valid service account and read-group name.")
     root = Path(a.output)
-    cert = getattr(a, 'certificate_dir', '') or "/etc/letsencrypt/live/" + a.hostname
-    if not re.fullmatch(r'/etc/[A-Za-z0-9_./-]+', cert) or '..' in Path(cert).parts:
-        raise ValueError('Certificate directory must be an absolute path under /etc.')
-    trusted_proxy = getattr(a, 'trusted_proxy', '')
-    real_ip = ''
+    cert = getattr(a, "certificate_dir", "") or "/etc/letsencrypt/live/" + a.hostname
+    if not re.fullmatch(r"/etc/[A-Za-z0-9_./-]+", cert) or ".." in Path(cert).parts:
+        raise ValueError("Certificate directory must be an absolute path under /etc.")
+    trusted_proxy = getattr(a, "trusted_proxy", "")
+    real_ip = ""
     if trusted_proxy:
         trusted_proxy = str(ipaddress.ip_address(trusted_proxy))
-        real_ip = f' set_real_ip_from {trusted_proxy};\n real_ip_header X-Forwarded-For;\n real_ip_recursive off;\n'
+        real_ip = f" set_real_ip_from {trusted_proxy};\n real_ip_header X-Forwarded-For;\n real_ip_recursive off;\n"
     database = "/var/lib/kagnode/mail/directory.sqlite3"
     files = {}
     files[

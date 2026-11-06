@@ -10,26 +10,47 @@ from kagnode.mail import Mail, build_message, recipients
 USER = {"id": 2, "email": "member@example.com"}
 
 
-@pytest.mark.parametrize("value, expected", [
-    ("friend@example.org,", ["friend@example.org"]),
-    ('"Last, First" <Friend@EXAMPLE.org>, other@example.org', ["Friend@example.org", "other@example.org"]),
-    ("o'connor@example.org, _support@example.org, foo-@example.org", ["o'connor@example.org", "_support@example.org", "foo-@example.org"]),
-    ('"a b"@example.org, friend+tag@example.org', ['"a b"@example.org', "friend+tag@example.org"]),
-    ("friend@example.org, friend@example.org", ["friend@example.org"]),
-])
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("friend@example.org,", ["friend@example.org"]),
+        (
+            '"Last, First" <Friend@EXAMPLE.org>, other@example.org',
+            ["Friend@example.org", "other@example.org"],
+        ),
+        (
+            "o'connor@example.org, _support@example.org, foo-@example.org",
+            ["o'connor@example.org", "_support@example.org", "foo-@example.org"],
+        ),
+        (
+            '"a b"@example.org, friend+tag@example.org',
+            ['"a b"@example.org', "friend+tag@example.org"],
+        ),
+        ("friend@example.org, friend@example.org", ["friend@example.org"]),
+    ],
+)
 def test_external_recipient_addresses(value, expected):
     msg, _, targets = build_message({"to": value}, USER, [USER["email"]])
     assert targets == expected
     assert [item.addr_spec for item in msg["To"].addresses] == expected
 
 
-@pytest.mark.parametrize("value", [
-    "friend@example.org, broken", "friend@example.org junk", "a@@example.org",
-    "friend@example.org\r\nBcc: evil@example.org", "friend@example.org\x00",
-    "fr\u200biend@example.org", "müller@example.org", "a..b@example.org",
-    "friend@example.org; other@example.org", "a" * 65 + "@example.org",
-    ",".join(f"person{i}@example.org" for i in range(51)),
-])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "friend@example.org, broken",
+        "friend@example.org junk",
+        "a@@example.org",
+        "friend@example.org\r\nBcc: evil@example.org",
+        "friend@example.org\x00",
+        "fr\u200biend@example.org",
+        "müller@example.org",
+        "a..b@example.org",
+        "friend@example.org; other@example.org",
+        "a" * 65 + "@example.org",
+        ",".join(f"person{i}@example.org" for i in range(51)),
+    ],
+)
 def test_invalid_recipient_list_is_never_partially_accepted(value):
     with pytest.raises(ValueError):
         recipients(value)
@@ -38,7 +59,9 @@ def test_invalid_recipient_list_is_never_partially_accepted(value):
 @pytest.mark.parametrize("field", ["to", "cc", "bcc"])
 def test_recipient_error_identifies_field(field):
     with pytest.raises(ValueError, match=f"^{field.capitalize()}: "):
-        build_message({"to": "friend@example.org", field: "broken"}, USER, [USER["email"]])
+        build_message(
+            {"to": "friend@example.org", field: "broken"}, USER, [USER["email"]]
+        )
 
 
 def test_missing_sender_identifies_from_field():
@@ -525,17 +548,31 @@ def test_saved_draft_reports_success_if_old_copy_removal_disconnects(monkeypatch
 def test_html_alternative_preserves_text_bcc_and_attachments():
     from werkzeug.datastructures import FileStorage
     import io
+
     message, sender, targets = build_message(
-        {"to": "friend@example.org", "bcc": "hidden@example.org", "subject": "Update", "body": "Open your account", "html": '<p>Open <a href="https://example.org/account">your account</a></p>'},
-        USER, [USER["email"]], [FileStorage(stream=io.BytesIO(b"notes"), filename="notes.txt")],
+        {
+            "to": "friend@example.org",
+            "bcc": "hidden@example.org",
+            "subject": "Update",
+            "body": "Open your account",
+            "html": '<p>Open <a href="https://example.org/account">your account</a></p>',
+        },
+        USER,
+        [USER["email"]],
+        [FileStorage(stream=io.BytesIO(b"notes"), filename="notes.txt")],
     )
     assert message.get_content_type() == "multipart/mixed"
     alternatives = message.get_payload(0)
     assert alternatives.get_content_type() == "multipart/alternative"
     assert alternatives.get_payload(0).get_content_type() == "text/plain"
     assert alternatives.get_payload(1).get_content_type() == "text/html"
-    assert "Open your account" in message.get_body(preferencelist=("plain",)).get_content()
-    assert '<a href="https://example.org/account">' in message.get_body(preferencelist=("html",)).get_content()
+    assert (
+        "Open your account" in message.get_body(preferencelist=("plain",)).get_content()
+    )
+    assert (
+        '<a href="https://example.org/account">'
+        in message.get_body(preferencelist=("html",)).get_content()
+    )
     assert "hidden@example.org" in targets
     assert list(message.iter_attachments())[0].get_filename() == "notes.txt"
 
@@ -543,4 +580,13 @@ def test_html_alternative_preserves_text_bcc_and_attachments():
 @pytest.mark.parametrize("extra", [{"body": ""}, {"html": {}}, {"html": "é" * 524289}])
 def test_html_requires_text_and_bounded_string(extra):
     with pytest.raises(ValueError):
-        build_message({"to": "friend@example.org", "body": "Text", "html": "<p>Text</p>", **extra}, USER, [USER["email"]])
+        build_message(
+            {
+                "to": "friend@example.org",
+                "body": "Text",
+                "html": "<p>Text</p>",
+                **extra,
+            },
+            USER,
+            [USER["email"]],
+        )
