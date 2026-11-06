@@ -9,6 +9,16 @@
     "sha256": "56610baab9a91f185e7cb3cf88c4879e9766eefc72203c7a4223f9dbba9f8b52",
     "bytes": 37581
   },
+  "kagnode-scroll.css": {
+    "file": "kagnode-scroll.e7a42221a0db6f96.css",
+    "sha256": "e7a42221a0db6f967041586278e2b31fdff98a0654f0056aa17271adfb0120c8",
+    "bytes": 1719
+  },
+  "kagnode-scroll.js": {
+    "file": "kagnode-scroll.d90b81b6b099cbda.js",
+    "sha256": "d90b81b6b099cbda17b303fede8c5ba23770c5e07e924d9d34d34efaea303521",
+    "bytes": 10759
+  },
   "kagnode-ui.css": {
     "file": "kagnode-ui.580961cf462d22d7.css",
     "sha256": "580961cf462d22d76dfb3afd1692975f64db549b8b4408ba0c9024812feb7582",
