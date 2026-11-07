@@ -93,6 +93,9 @@ def create_app(overrides=None):
     from .web_assets import register_assets
 
     register_assets(app)
+    from .kagnode_core import register_flask, register_flask_api
+
+    register_flask(app, "mail")
     app.request_class = BoundedRequest
     app.config.update(
         DATABASE="/var/lib/kagnode/mail/directory.sqlite3",
@@ -869,6 +872,14 @@ def create_app(overrides=None):
             if action == "policy" or action.startswith("updates.")
             else execute()
         )
+
+    register_flask_api(
+        app,
+        "mail",
+        login_required,
+        lambda: bool(g.user and g.user["admin"]),
+        admin_required,
+    )
 
     from .api import register_api
 

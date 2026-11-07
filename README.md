@@ -8,7 +8,7 @@ Self-hosted mail, webmail and a server-only application mail API.
 
 ## Release status
 
-Product source: **1.1.0**. Packaging preview: **1.1.0-packaging.2**.
+Product source: **1.1.0**. Packaging preview: **1.1.0-packaging.3**.
 
 Packaging prereleases do not change the latest stable release or establish new hardware or service compatibility. See [verification](docs/VERIFICATION.md) and [changelog](CHANGELOG.md).
 
@@ -49,6 +49,8 @@ python3 -m venv .venv
 See [operations and existing setup instructions](docs/OPERATIONS.md) for the full workflow and its prerequisites.
 
 ## Configuration and storage
+
+Shared presentation uses [KagNode Core](docs/CORE.md), with a pinned local fallback and reviewed server adapters. Compatible stable UI patches have a separate local-administrator policy.
 
 Review PATHS.md and the migration guide before changing an existing installation. Maildir, accounts, keys and configuration belong outside the source tree.
 

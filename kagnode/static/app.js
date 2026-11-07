@@ -339,6 +339,12 @@ async function boot() {
   try {
     const s = await api("/session");
     Object.assign(state, s);
+    window.KagNodeCore?.setSession({
+      authenticated: !!s.user,
+      subject: s.user?.id || "",
+      name: s.user?.name || "",
+      email: s.user?.email || "",
+    });
     $("#loading").hidden = true;
     $("#workspace").hidden = !s.user;
     $("#login-view").hidden = !!s.user;
@@ -2306,45 +2312,7 @@ document.addEventListener("keydown", (event) => {
     openNavigation();
   }
 });
-const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
-let themePreference = null;
-try {
-  themePreference = localStorage.getItem("kagnode-theme");
-} catch {}
-
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  $("#theme-toggle").setAttribute(
-    "aria-label",
-    theme === "dark" ? "Use light theme" : "Use dark theme",
-  );
-  $("#theme-toggle").setAttribute(
-    "title",
-    theme === "dark" ? "Use light theme" : "Use dark theme",
-  );
-  $('meta[name="theme-color"]').setAttribute(
-    "content",
-    theme === "dark" ? "#000000" : "#f5f7fc",
-  );
-}
-applyTheme(
-  themePreference === "dark" || themePreference === "light"
-    ? themePreference
-    : systemTheme.matches
-      ? "dark"
-      : "light",
-);
-systemTheme.addEventListener("change", (e) => {
-  if (!themePreference) applyTheme(e.matches ? "dark" : "light");
-});
-$("#theme-toggle").addEventListener("click", () => {
-  themePreference =
-    document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-  applyTheme(themePreference);
-  try {
-    localStorage.setItem("kagnode-theme", themePreference);
-  } catch {}
-});
+// Appearance is owned by KagNode Core and account preferences.
 boot();
 
 window.KagNodeAccountRequest = (action = "state", data = {}) =>
@@ -2352,3 +2320,6 @@ window.KagNodeAccountRequest = (action = "state", data = {}) =>
     "/kagnode-account",
     action === "state" ? {} : { method: "POST", body: { action, ...data } },
   );
+
+// The shared UI delegates sensitive reauthentication to this local application.
+window.KagNodeCoreHost = { reauthenticate: confirmRecentPassword };
