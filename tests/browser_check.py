@@ -387,7 +387,7 @@ with sync_playwright() as p:
     page.locator(".reader-back").click()
     page.locator(".message-row").first.wait_for(state="visible")
     page.locator("#mobile-menu").click()
-    page.locator("#sidebar.open").wait_for(state="visible")
+    page.locator('html[data-core-drawer="true"] #sidebar').wait_for(state="visible")
     page.locator('a[href="#domains"]').click()
     page.locator("#sidebar:not(.open)").wait_for(state="attached")
     # Navigation remains reachable on short phones and tablets; account/site actions
