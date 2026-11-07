@@ -62,6 +62,13 @@ class ProfileSyncTests(unittest.TestCase):
         )
         return self.links.handle(uid, "Local name", False, "poll")
 
+    def test_updates_require_local_admin_even_when_profile_sync_is_disabled(self):
+        self.links.handle("owner", "Owner", True, "policy", {"enabled": False})
+        for action in ("updates.state", "updates.check", "updates.apply"):
+            with self.assertRaises(module.AccountLinkError):
+                self.links.handle("viewer", "Viewer", False, action, {"release_id": 42})
+        self.assertEqual(self.calls, [])
+
     def test_explicit_link_returns_profile_without_exposing_credentials(self):
         state = self.link()
         self.assertTrue(state["connected"])

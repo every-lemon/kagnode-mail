@@ -8,7 +8,7 @@ Self-hosted mail, webmail and a server-only application mail API.
 
 ## Release status
 
-Product source: **1.1.0**. Packaging preview: **1.1.0-packaging.1**.
+Product source: **1.1.0**. Packaging preview: **1.1.0-packaging.2**.
 
 Packaging prereleases do not change the latest stable release or establish new hardware or service compatibility. See [verification](docs/VERIFICATION.md) and [changelog](CHANGELOG.md).
 
@@ -68,6 +68,8 @@ python3 scripts/release.py --output dist/packages
 Install the formatting dependencies from `requirements-format.txt`. Package building additionally needs `dpkg-deb`, `rpmbuild`, XZ support and, for CLI binaries, Go. Read [the repository map](docs/STRUCTURE.md) before editing generated files.
 
 ## Documentation
+
+- [Ecosystem installation and updates](docs/ECOSYSTEM.md)
 
 - [Repository structure](docs/STRUCTURE.md)
 - [Operations](docs/OPERATIONS.md)
