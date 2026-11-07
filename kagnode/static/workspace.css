@@ -610,3 +610,92 @@
     gap: 5px;
   }
 }
+
+/* Reading uses the viewport; account and administration retain navigation. */
+html[data-mail-layout="mail"] #workspace > .main {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+html[data-mail-layout="settings"][data-core-shell="active"] #workspace > .main {
+  margin-left: var(
+    --kn-sidebar-reserved-size,
+    var(--kn-sidebar-size)
+  ) !important;
+  width: calc(
+    100% - var(--kn-sidebar-reserved-size, var(--kn-sidebar-size))
+  ) !important;
+}
+html[data-mail-layout="mail"] .mobile-brand {
+  display: flex !important;
+  margin-right: 10px;
+}
+.mail-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.mail-folder-host {
+  overflow: auto;
+  min-width: 0;
+}
+.mail-folder-host #mail-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  padding: 0;
+}
+.mail-folder-host #mail-nav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  padding: 10px 14px;
+  min-height: 42px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.mail-folder-host #mail-nav .nav-item.active {
+  color: var(--accent);
+  background: var(--soft);
+}
+.mail-folder-host #mail-nav .icon {
+  width: 18px;
+  height: 18px;
+}
+#mail-compose-host .compose-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  white-space: nowrap;
+}
+#compose-mobile {
+  display: none !important;
+}
+@media (max-width: 1023px) {
+  html[data-mail-layout="settings"][data-core-shell="active"]
+    #workspace
+    > .main {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+@media (max-width: 600px) {
+  .mail-navigation {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
+  #mail-compose-host .compose-main {
+    width: 100%;
+    justify-content: center;
+  }
+  .mail-folder-host #mail-nav .nav-item {
+    padding: 9px 12px;
+  }
+}

@@ -383,7 +383,28 @@ async function boot() {
 }
 async function route() {
   if (!state.user) return;
-  const page = location.hash.slice(1) || "inbox";
+  let page = location.hash.slice(1) || "inbox";
+  if (
+    page !== "account" &&
+    !folders.some((f) => f[0] === page) &&
+    !(state.user.admin && adminPages.some((f) => f[0] === page))
+  ) {
+    page = "inbox";
+    history.replaceState(
+      null,
+      "",
+      location.pathname + location.search + "#inbox",
+    );
+  }
+  const mailbox = folders.some((f) => f[0] === page);
+  document.documentElement.dataset.mailLayout = mailbox ? "mail" : "settings";
+  $("#sidebar").hidden = mailbox;
+  $("#mail-navigation").hidden = !mailbox;
+  $("#mail-folder-host").append($("#mail-nav"));
+  $("#mail-nav").setAttribute("aria-label", "Mail folders");
+  $("#mail-nav").removeAttribute("aria-labelledby");
+  $("#mail-compose-host").append($("#compose-button"));
+  window.KagNodeCore?.refresh();
   if (page !== "tokens" && $("#token-secret")) $("#form-dialog").close();
   setSidebar(false);
   document.querySelectorAll("[data-page]").forEach((n) => {
