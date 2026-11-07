@@ -106,3 +106,7 @@ ESBUILD=/path/to/esbuild python3 scripts/build-web.py --package kagnode --produc
 ```
 
 Generated assets and their private package manifest ship with the application. Node.js is not required on the server.
+
+## Account profile integration preview
+
+Added optional KagNode Account display-name/photo linking, local administrator disable controls and private credential storage. Existing local account authentication and data remain independent.

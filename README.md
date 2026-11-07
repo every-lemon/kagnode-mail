@@ -18,6 +18,8 @@ Packaging prereleases do not change the latest stable release or establish new h
 - Postfix, Dovecot and OpenDKIM integration with explicit administrator setup.
 - Scoped API tokens, quotas, audit records and backup tools.
 
+Optional KagNode Account linking syncs your display name and photo after explicit approval. Your local application administrator can disable it. Local sign-in and permissions stay independent.
+
 ## Requirements
 
 Ubuntu Server 24.04, Python 3.12 and a dedicated mail host. Internet delivery additionally requires working DNS, TLS and reachable SMTP ports.
@@ -71,6 +73,7 @@ Install the formatting dependencies from `requirements-format.txt`. Package buil
 - [Operations](docs/OPERATIONS.md)
 - [Packages and release process](docs/PACKAGING.md)
 - [Verification and limits](docs/VERIFICATION.md)
+- [KagNode Account linking](docs/ACCOUNT-SYNC.md)
 - [Changelog](CHANGELOG.md)
 
 ## Licensing

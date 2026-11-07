@@ -51,6 +51,15 @@ path = package / "web-assets.json"
 temporary = path.with_suffix(".json.tmp")
 temporary.write_text(json.dumps(manifest, indent=2) + "\n")
 temporary.replace(path)
+# Content-addressed outputs absent from the complete manifest are obsolete.
+retained = {entry["file"] for entry in manifest.values()}
+for stale in output.iterdir():
+    if (
+        stale.is_file()
+        and stale.name not in retained
+        and __import__("re").fullmatch(r".+\.[0-9a-f]{16}\.(?:js|css)", stale.name)
+    ):
+        stale.unlink()
 print(
     "Built",
     len(manifest),

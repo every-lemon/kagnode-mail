@@ -2346,3 +2346,9 @@ $("#theme-toggle").addEventListener("click", () => {
   } catch {}
 });
 boot();
+
+window.KagNodeAccountRequest = (action = "state", data = {}) =>
+  api(
+    "/kagnode-account",
+    action === "state" ? {} : { method: "POST", body: { action, ...data } },
+  );

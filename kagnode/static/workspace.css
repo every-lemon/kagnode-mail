@@ -537,3 +537,76 @@
     animation: none;
   }
 }
+
+/* Shared KagNode navigation geometry; mailbox controls remain feature-specific. */
+.sidebar .brand-wordmark small {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 11px;
+}
+.sidebar .website-link {
+  margin: 0 0 18px;
+  min-height: 44px;
+}
+.sidebar-product-label {
+  font-size: 11px;
+  color: var(--kn-muted, var(--muted));
+}
+@media (min-width: 901px) {
+  .sidebar {
+    top: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: 246px;
+    border: 1px solid var(--kn-line, var(--border));
+    border-radius: 22px;
+    padding: 22px 14px;
+  }
+  .sidebar > .brand {
+    padding: 0 8px 26px;
+  }
+  .sidebar .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+  .sidebar .brand-wordmark strong {
+    font-size: 24px;
+    letter-spacing: -0.055em;
+  }
+  .sidebar .sidebar-navigation {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .sidebar .nav-item {
+    min-height: 44px;
+    border-radius: 12px;
+    gap: 12px;
+  }
+  .sidebar .nav-label {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+  .main {
+    margin-left: 276px;
+    width: calc(100% - 276px);
+    padding-inline: 34px;
+  }
+  .topbar {
+    min-height: 82px;
+    gap: 12px;
+  }
+  .sidebar-bottom {
+    padding-top: 18px;
+    border-top: 1px solid var(--kn-line, var(--border));
+  }
+}
+@media (max-width: 900px) {
+  .topbar .mail-location {
+    min-width: 38px;
+    flex-shrink: 0;
+  }
+  .topbar-right {
+    gap: 5px;
+  }
+}

@@ -819,6 +819,53 @@ def create_app(overrides=None):
                     row.update(status="unavailable", observed=[])
         return jsonify(records=rows)
 
+    from .account_sync import ProfileLinks, AccountLinkError
+
+    profile_links = ProfileLinks(
+        Path(app.config["DATABASE"]).parent / "account-sync", "kagnode-mail"
+    )
+    app.extensions["kagnode_account"] = profile_links
+
+    @app.route("/api/kagnode-account", methods=["GET", "POST"])
+    @login_required
+    def kagnode_account():
+        if app.config["DEMO"]:
+            if request.method != "GET":
+                return jsonify(
+                    error="Profile linking is unavailable in the read-only preview."
+                ), 403
+            return jsonify(
+                enabled=False,
+                admin=False,
+                connected=False,
+                profile=None,
+                local_name=g.user["name"],
+                warning="",
+                configured_off=True,
+            )
+        data = request.get_json(silent=True) or {} if request.method == "POST" else {}
+        if not isinstance(data, dict):
+            return jsonify(error="Invalid account-link request."), 400
+        action = (
+            str(data.get("action", "state")) if request.method == "POST" else "state"
+        )
+
+        def execute():
+            try:
+                result = profile_links.handle(
+                    g.user["id"],
+                    g.user["name"],
+                    bool(g.user["admin"]),
+                    action,
+                    data,
+                    request.host_url.rstrip("/"),
+                )
+                return jsonify(result)
+            except AccountLinkError as error:
+                return jsonify(error=str(error)), error.status
+
+        return admin_required(execute)() if action == "policy" else execute()
+
     from .api import register_api
 
     register_api(app, getdb, admin_required, limit, cipher)

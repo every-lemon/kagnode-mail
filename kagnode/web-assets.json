@@ -5,9 +5,19 @@
     "bytes": 30326
   },
   "app.js": {
-    "file": "app.540593b83f5d8453.js",
-    "sha256": "540593b83f5d84536a172b48d674d50b0111beffd9a285990273e59c91e0bf3f",
-    "bytes": 37734
+    "file": "app.74a6cc5c89c5e4d2.js",
+    "sha256": "74a6cc5c89c5e4d2a8a6acd083b9f3e673825d0c13fee61c1a992b6ea42a618b",
+    "bytes": 37857
+  },
+  "kagnode-account.css": {
+    "file": "kagnode-account.cc66fbb0055abd8f.css",
+    "sha256": "cc66fbb0055abd8fb6ca07b79a6a894b78b288ade18e29fda7fef005fbc87e64",
+    "bytes": 1806
+  },
+  "kagnode-account.js": {
+    "file": "kagnode-account.8c627bc340f03644.js",
+    "sha256": "8c627bc340f036442bc5ce0eb218d7d438ae34e44f06bb0e4f98af4205b57af6",
+    "bytes": 6813
   },
   "kagnode-scroll.css": {
     "file": "kagnode-scroll.8ae78b0f175a3646.css",
@@ -15,9 +25,9 @@
     "bytes": 3604
   },
   "kagnode-scroll.js": {
-    "file": "kagnode-scroll.863c676b63b6d0f0.js",
-    "sha256": "863c676b63b6d0f0af850e44e8cb977d1cad953b11db65f0ded281b9176a134e",
-    "bytes": 13271
+    "file": "kagnode-scroll.72b62ad70d48e00d.js",
+    "sha256": "72b62ad70d48e00d01aeb7df2989d0181e415cdc3bcf52b79f1ccbd65d7da974",
+    "bytes": 13341
   },
   "kagnode-ui.css": {
     "file": "kagnode-ui.df9bb89764028187.css",
@@ -25,8 +35,8 @@
     "bytes": 5291
   },
   "workspace.css": {
-    "file": "workspace.07f08684dc6aff3b.css",
-    "sha256": "07f08684dc6aff3b613216bb4e4c73c04e4bdb135fceb1776508da4dff69b387",
-    "bytes": 7106
+    "file": "workspace.0fcb497532532e44.css",
+    "sha256": "0fcb497532532e442a68f4277d59faad8f9725d9040af9a7fae4d569ac69bcf9",
+    "bytes": 8101
   }
 }
