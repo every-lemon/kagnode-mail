@@ -2133,6 +2133,17 @@ $("#profile-button").addEventListener("click", () => {
 });
 
 function setSidebar(open) {
+  if (window.KagNodeCore) {
+    const active = document.documentElement.dataset.coreDrawer === "true";
+    if (open && !active) {
+      if (KagNodeCore.navigation) KagNodeCore.navigation.open();
+      else $("#mobile-menu").click();
+    } else if (!open && active) {
+      if (KagNodeCore.navigation) KagNodeCore.navigation.close();
+      else $(".kn-core-drawer-scrim")?.click();
+    }
+    return;
+  }
   const mobile = window.matchMedia("(max-width:900px)").matches;
   const wasOpen = $("#sidebar").classList.contains("open");
   const visible = open && mobile;
@@ -2171,9 +2182,9 @@ $("#sidebar-backdrop").addEventListener("click", () => setSidebar(false));
 $("#sidebar").addEventListener("click", (ev) => {
   if (ev.target.closest("a")) setSidebar(false);
 });
-window
-  .matchMedia("(max-width:900px)")
-  .addEventListener("change", () => setSidebar(false));
+window.matchMedia("(max-width:900px)").addEventListener("change", () => {
+  if (!window.KagNodeCore) setSidebar(false);
+});
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && !document.querySelector("dialog[open]"))
     setSidebar(false);
