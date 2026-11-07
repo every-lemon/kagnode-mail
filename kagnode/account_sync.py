@@ -263,6 +263,17 @@ class ProfileLinks:
         }
 
     def handle(self, uid, name, admin, action="state", data=None, installation=""):
+        if action.startswith("updates."):
+            if not admin:
+                raise AccountLinkError("Local administrator access is required.", 403)
+            if __package__:
+                from .ecosystem_updates import manage_update, UpdateError
+            else:
+                from ecosystem_updates import manage_update, UpdateError
+            try:
+                return manage_update(self.client, action.removeprefix("updates."), data)
+            except UpdateError as error:
+                raise AccountLinkError(str(error), 400) from error
         uid = str(uid)
         data = data or {}
         if action == "retry_disconnections":

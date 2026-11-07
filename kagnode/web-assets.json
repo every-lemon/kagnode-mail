@@ -10,14 +10,14 @@
     "bytes": 37857
   },
   "kagnode-account.css": {
-    "file": "kagnode-account.cc66fbb0055abd8f.css",
-    "sha256": "cc66fbb0055abd8fb6ca07b79a6a894b78b288ade18e29fda7fef005fbc87e64",
-    "bytes": 1806
+    "file": "kagnode-account.03993f2713b5d5b5.css",
+    "sha256": "03993f2713b5d5b5725506382471662b03cc8060c70036045dfa263aead994d4",
+    "bytes": 2183
   },
   "kagnode-account.js": {
-    "file": "kagnode-account.8c627bc340f03644.js",
-    "sha256": "8c627bc340f036442bc5ce0eb218d7d438ae34e44f06bb0e4f98af4205b57af6",
-    "bytes": 6813
+    "file": "kagnode-account.28829e537eab9228.js",
+    "sha256": "28829e537eab9228946840fafba9e995452d09ec1e2d47cf5eb029eee8d6152a",
+    "bytes": 9126
   },
   "kagnode-scroll.css": {
     "file": "kagnode-scroll.8ae78b0f175a3646.css",

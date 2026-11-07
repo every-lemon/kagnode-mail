@@ -864,7 +864,11 @@ def create_app(overrides=None):
             except AccountLinkError as error:
                 return jsonify(error=str(error)), error.status
 
-        return admin_required(execute)() if action == "policy" else execute()
+        return (
+            admin_required(execute)()
+            if action == "policy" or action.startswith("updates.")
+            else execute()
+        )
 
     from .api import register_api
 
