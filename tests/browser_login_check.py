@@ -73,7 +73,7 @@ with sync_playwright() as playwright:
         path = urlsplit(route.request.url).path
         if path == "/api/session":
             route.fulfill(content_type="application/json", body=json.dumps(blocked))
-        elif path == "/" or path.startswith("/static/"):
+        elif path == "/" or path.startswith(("/static/", "/kagnode-core/")):
             response = route.fetch(url=BASE + path)
             route.fulfill(response=response)
         else:

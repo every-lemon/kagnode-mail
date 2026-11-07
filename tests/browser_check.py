@@ -164,7 +164,8 @@ with sync_playwright() as p:
     page.locator('#form-dialog button[aria-label="Close dialog"]').click()
     if page.locator("#sidebar-backdrop").is_visible():
         page.locator("#sidebar-close").click()
-    page.locator("#profile-button").click()
+    page.locator("[data-core-account-trigger]").click()
+    page.locator('[data-core-account-menu] a[href="#account"]').click()
     page.get_by_role("heading", name="Mail clients", exact=True).wait_for()
     page.screenshot(path=str(OUT / "account.png"), full_page=True)
     # Tokens use mock mutations so the preview remains read-only.
@@ -320,7 +321,7 @@ with sync_playwright() as p:
         "Revoked", exact=True
     ).wait_for()
     page.locator("#toast").wait_for(state="hidden")
-    page.locator("#theme-toggle").click()
+    page.evaluate("KagNodeTheme.saveLocal('dark')")
     page.screenshot(path=str(OUT / "tokens-dark.png"), full_page=True)
     assert (
         page.locator(".token-card").first.evaluate(
@@ -328,7 +329,7 @@ with sync_playwright() as p:
         )
         == "rgb(25, 25, 25)"
     )
-    page.locator("#theme-toggle").click()
+    page.evaluate("KagNodeTheme.saveLocal('light')")
     page.set_viewport_size({"width": 390, "height": 844})
     page.screenshot(path=str(OUT / "tokens-mobile.png"), full_page=True)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (
@@ -374,9 +375,9 @@ with sync_playwright() as p:
     page.locator('#mail-nav a[href="#inbox"]').click()
     page.locator(".message-row").first.click()
     page.locator(".message-body").wait_for()
-    page.locator("#theme-toggle").click()
+    page.evaluate("KagNodeTheme.saveLocal('dark')")
     page.screenshot(path=str(OUT / "dark.png"), full_page=True)
-    page.locator("#theme-toggle").click()
+    page.evaluate("KagNodeTheme.saveLocal('light')")
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_timeout(250)
     page.screenshot(path=str(OUT / "mobile.png"), full_page=False)
@@ -386,7 +387,7 @@ with sync_playwright() as p:
     page.locator(".reader-back").click()
     page.locator(".message-row").first.wait_for(state="visible")
     page.locator("#mobile-menu").click()
-    page.locator("#sidebar.open").wait_for(state="visible")
+    page.locator('html[data-core-drawer="true"] #sidebar').wait_for(state="visible")
     page.locator('a[href="#domains"]').click()
     page.locator("#sidebar:not(.open)").wait_for(state="attached")
     # Navigation remains reachable on short phones and tablets; account/site actions
@@ -408,11 +409,12 @@ with sync_playwright() as p:
         page.locator("#mobile-menu").click()
         expect(page.locator("#mobile-menu")).to_have_attribute("aria-expanded", "true")
         page.locator('#admin-nav a[href="#tokens"]').scroll_into_view_if_needed()
-        assert page.locator(".sidebar .website-link").evaluate(
+        assert page.locator("[data-core-toggle]").evaluate(
             "el => {const r=el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;}"
         ), f"Sidebar bottom outside viewport at {width}px"
         page.locator("#sidebar-close").click()
-        page.locator("#profile-button").click()
+        page.locator("[data-core-account-trigger]").click()
+        page.locator('[data-core-account-menu] a[href="#account"]').click()
         expect(page.locator("#location-page")).to_have_text("Account")
         expect(page.locator("#location-page")).to_be_visible()
         expect(page.locator("#mobile-menu")).to_have_attribute("aria-expanded", "false")
