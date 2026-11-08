@@ -4,5 +4,5 @@
   "version_pattern": "version = \"([^\"]+)\"",
   "kind": "application",
   "license": "AGPL-3.0-only",
-  "revision": 5
+  "revision": 6
 }
