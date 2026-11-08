@@ -127,3 +127,9 @@ Use **Replace** to prefill a new token with the same mailbox and permissions. St
 An operation already in progress may finish. The SMTP guard rechecks expiry/revocation/permissions at the end of DATA, but mail already accepted into the queue cannot be recalled. Public SMTP and IMAP reject the separate internal token credentials. Backups omit API tokens and web sessions; issue new tokens after restoring a backup.
 
 The `0.3.0` API targets fresh installations. Existing `0.2` installations need a separately reviewed database and mail-configuration migration; replacing application files alone is insufficient.
+
+### Newsletter list metadata
+
+`POST /api/v1/send` accepts optional `unsubscribe_url` and `list_id` fields together. The URL must be HTTPS without credentials or header-control characters, and the list identifier is limited to letters, numbers, dots and hyphens. The server generates `List-Unsubscribe`, `List-Unsubscribe-Post: List-Unsubscribe=One-Click` and `List-ID`; callers cannot supply arbitrary headers.
+
+These fields do not change sender permissions, token scopes or mailbox sending limits. A newsletter sender must verify that its outbound DKIM signature covers both unsubscribe headers. KagNode's newsletter publishing tools perform this verification on a received test message before allowing campaigns.

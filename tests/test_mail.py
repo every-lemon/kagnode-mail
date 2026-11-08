@@ -590,3 +590,43 @@ def test_html_requires_text_and_bounded_string(extra):
             USER,
             [USER["email"]],
         )
+
+
+def test_newsletter_metadata_adds_only_typed_list_headers():
+    msg, _, _ = build_message(
+        {
+            "to": "reader@example.org",
+            "body": "A newsletter",
+            "unsubscribe_url": "https://example.com/newsletter/unsubscribe?token=opaque",
+            "list_id": "newsletter.example.com",
+            "headers": {"X-Injected": "ignored"},
+        },
+        USER,
+        [USER["email"]],
+    )
+    assert (
+        str(msg["List-Unsubscribe"])
+        == "<https://example.com/newsletter/unsubscribe?token=opaque>"
+    )
+    assert msg["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+    assert str(msg["List-ID"]) == "<newsletter.example.com>"
+    assert "X-Injected" not in msg
+
+
+@pytest.mark.parametrize(
+    "url,list_id",
+    [
+        ("http://example.com/unsub", "newsletter.example.com"),
+        ("https://user:password@example.com/unsub", "newsletter.example.com"),
+        ("https://example.com/\r\nBcc:bad@example.com", "newsletter.example.com"),
+        ("https://example.com/unsub", "list\r\nBcc:bad"),
+        ([], "newsletter.example.com"),
+    ],
+)
+def test_newsletter_metadata_rejects_header_injection(url, list_id):
+    with pytest.raises(ValueError):
+        build_message(
+            {"to": "reader@example.org", "unsubscribe_url": url, "list_id": list_id},
+            USER,
+            [USER["email"]],
+        )

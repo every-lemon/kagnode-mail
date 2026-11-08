@@ -151,6 +151,29 @@ def build_message(data, user, allowed, attachments=(), draft=False):
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = make_msgid(domain=sender.split("@")[1])
+    if data.get("unsubscribe_url") is not None or data.get("list_id") is not None:
+        from urllib.parse import urlsplit
+        import re
+
+        unsubscribe = data.get("unsubscribe_url", "")
+        list_id = data.get("list_id", "")
+        if not isinstance(unsubscribe, str) or not isinstance(list_id, str):
+            raise ValueError("Newsletter metadata must be text.")
+        parsed = urlsplit(unsubscribe)
+        if (
+            len(unsubscribe) > 2048
+            or parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or any(c in unsubscribe for c in "\r\n<>")
+            or len(list_id) > 254
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]+", list_id)
+        ):
+            raise ValueError("Invalid newsletter delivery metadata.")
+        msg["List-Unsubscribe"] = "<" + unsubscribe + ">"
+        msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+        msg["List-ID"] = "<" + list_id + ">"
     msg.set_content(body)
     if html:
         msg.add_alternative(html, subtype="html")
