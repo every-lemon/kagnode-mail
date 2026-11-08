@@ -1,5 +1,9 @@
 ## Ecosystem update panel — packaging preview 2
 
+## Declared Core binding preview
+
+Document the pinned Core baseline explicitly for new server bindings and the reviewed application-upgrade workflow. Existing application data and stable release selections remain unchanged.
+
 ## Shared loading spinner preview
 
 Use KagNode Core 1.0.5 for the shared split-orbit loading mark, with reduced-motion support and existing status/recovery controls retained. This changes web presentation without resetting data or provisioning native services.
