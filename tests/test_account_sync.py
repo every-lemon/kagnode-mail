@@ -62,6 +62,144 @@ class ProfileSyncTests(unittest.TestCase):
         )
         return self.links.handle(uid, "Local name", False, "poll")
 
+    def test_pending_link_survives_new_server_instance_without_exposing_device_secret(
+        self,
+    ):
+        start = self.links.handle(
+            "local-a",
+            "Local name",
+            False,
+            "start",
+            installation="https://mail.example.com",
+        )
+        self.now += 40
+        reopened = module.ProfileLinks(
+            self.links.path.parent,
+            "kagnode-mail",
+            transport=self.transport,
+            clock=lambda: self.now,
+        )
+        state = reopened.state("local-a", "Local name")
+        self.assertTrue(state.get("pending"))
+        self.assertEqual(state["user_code"], start["user_code"])
+        self.assertEqual(state["attempt_id"], start["attempt_id"])
+        self.assertEqual(state["expires_in"], 560)
+        self.assertNotIn("D" * 43, str(state))
+        self.assertNotIn("device", state)
+        self.assertFalse(reopened.state("other-local-account", "Other").get("pending"))
+        self.now += 561
+        self.assertFalse(reopened.state("local-a", "Local name").get("pending"))
+
+    def test_cancel_is_attempt_scoped_and_does_not_disconnect_established_profile(self):
+        old = self.links.handle(
+            "local-a",
+            "Local name",
+            False,
+            "start",
+            installation="https://mail.example.com",
+        )
+        latest = self.links.handle(
+            "local-a",
+            "Local name",
+            False,
+            "start",
+            installation="https://mail.example.com",
+        )
+        with self.assertRaises(module.AccountLinkError):
+            self.links.handle(
+                "local-a",
+                "Local name",
+                False,
+                "cancel",
+                {"attempt_id": old["attempt_id"]},
+            )
+        self.assertEqual(
+            self.links.state("local-a", "Local name")["attempt_id"],
+            latest["attempt_id"],
+        )
+        result = self.links.handle(
+            "local-a",
+            "Local name",
+            False,
+            "cancel",
+            {"attempt_id": latest["attempt_id"]},
+        )
+        self.assertFalse(result.get("pending"))
+        self.assertFalse(result["connected"])
+        self.link()
+        with self.assertRaises(module.AccountLinkError):
+            self.links.handle(
+                "local-a",
+                "Local name",
+                False,
+                "cancel",
+                {"attempt_id": latest["attempt_id"]},
+            )
+        self.assertTrue(self.links.state("local-a", "Local name")["connected"])
+
+    def test_cancel_invalidates_credentials_returned_by_an_in_flight_poll(self):
+        start = self.links.handle(
+            "local-a",
+            "Local name",
+            False,
+            "start",
+            installation="https://mail.example.com",
+        )
+        original = self.links.transport
+
+        def racing(method, endpoint, data=None, token=None):
+            if endpoint == "token":
+                self.links.handle(
+                    "local-a",
+                    "Local name",
+                    False,
+                    "cancel",
+                    {"attempt_id": start["attempt_id"]},
+                )
+            return original(method, endpoint, data, token)
+
+        self.links.transport = racing
+        with self.assertRaises(module.AccountLinkError):
+            self.links.handle("local-a", "Local name", False, "poll")
+        state = self.links.state("local-a", "Local name")
+        self.assertFalse(state["connected"])
+        self.assertFalse(state.get("pending"))
+
+    def test_cancelled_poll_retains_failed_remote_revocation_for_retry(self):
+        start = self.links.handle(
+            "local-a",
+            "Local name",
+            False,
+            "start",
+            installation="https://mail.example.com",
+        )
+        original = self.links.transport
+
+        def racing(method, endpoint, data=None, token=None):
+            if endpoint == "token":
+                self.links.handle(
+                    "local-a",
+                    "Local name",
+                    False,
+                    "cancel",
+                    {"attempt_id": start["attempt_id"]},
+                )
+            if endpoint == "revoke":
+                raise module.AccountLinkError("Issuer offline", 502)
+            return original(method, endpoint, data, token)
+
+        self.links.transport = racing
+        with self.assertRaises(module.AccountLinkError):
+            self.links.handle("local-a", "Local name", False, "poll")
+        self.assertEqual(
+            self.links.state("local-a", "Local name", True)["revocations_pending"], 1
+        )
+        self.links.transport = original
+        self.links.handle("admin", "Admin", True, "retry_disconnections")
+        self.assertEqual(
+            self.links.state("local-a", "Local name", True)["revocations_pending"], 0
+        )
+
     def test_updates_require_local_admin_even_when_profile_sync_is_disabled(self):
         self.links.handle("owner", "Owner", True, "policy", {"enabled": False})
         for action in ("updates.state", "updates.check", "updates.apply"):

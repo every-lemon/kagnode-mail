@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -251,11 +252,29 @@ class ProfileLinks:
                 if admin
                 else 0
             )
+            pending = db.execute(
+                "SELECT user_code,verification,expires,interval,generation FROM pending WHERE local_id=? AND expires>? AND generation=?",
+                (str(uid), self.clock(), self.stamp(uid)),
+            ).fetchone()
+        connected = bool(enabled and row and row["refresh"])
+        pending = pending if enabled and not connected else None
         return {
+            "pending": bool(pending),
+            **(
+                {
+                    "user_code": pending["user_code"],
+                    "verification_uri": pending["verification"],
+                    "expires_in": max(1, math.ceil(pending["expires"] - self.clock())),
+                    "interval": pending["interval"],
+                    "attempt_id": pending["generation"],
+                }
+                if pending
+                else {}
+            ),
             "revocations_pending": revocations,
             "enabled": enabled,
             "admin": bool(admin),
-            "connected": bool(enabled and row and row["refresh"]),
+            "connected": connected,
             "profile": json.loads(row["profile"]) if enabled and row else None,
             "local_name": str(name),
             "warning": warning,
@@ -276,6 +295,30 @@ class ProfileLinks:
                 raise AccountLinkError(str(error), 400) from error
         uid = str(uid)
         data = data or {}
+        if action == "cancel":
+            with self.db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                pending = db.execute(
+                    "SELECT generation FROM pending WHERE local_id=?", (uid,)
+                ).fetchone()
+                if (
+                    not pending
+                    or pending[0] != data.get("attempt_id")
+                    or pending[0] != self.stamp(uid)
+                ):
+                    raise AccountLinkError(
+                        "The account-link attempt changed. Reload its status.", 409
+                    )
+                db.execute(
+                    "INSERT INTO link_epochs VALUES(?,1) ON CONFLICT(local_id) DO UPDATE SET epoch=epoch+1",
+                    (uid,),
+                )
+                db.execute("DELETE FROM pending WHERE local_id=?", (uid,))
+                db.execute(
+                    "INSERT INTO audit(actor,action,created) VALUES(?,?,?)",
+                    (uid, "profile.cancel", self.clock()),
+                )
+            return self.state(uid, name, admin, False)
         if action == "retry_disconnections":
             if not admin:
                 raise AccountLinkError("Local administrator access is required.", 403)
@@ -391,12 +434,7 @@ class ProfileLinks:
                         expected_stamp,
                     ),
                 )
-            return {
-                "pending": True,
-                "user_code": result["user_code"],
-                "verification_uri": verification,
-                "interval": 5,
-            }
+            return self.state(uid, name, admin, False)
         if action == "poll":
             with self.db() as db:
                 db.execute("BEGIN IMMEDIATE")
@@ -431,8 +469,8 @@ class ProfileLinks:
                 )
                 with self.db() as db:
                     db.execute(
-                        "UPDATE pending SET interval=? WHERE local_id=?",
-                        (interval, uid),
+                        "UPDATE pending SET interval=? WHERE local_id=? AND generation=?",
+                        (interval, uid, row["generation"]),
                     )
                 return {"pending": True, "interval": interval}
             if result.get("error"):
@@ -441,7 +479,10 @@ class ProfileLinks:
                 )
             self.save(uid, result, str(row["generation"]))
             with self.db() as db:
-                db.execute("DELETE FROM pending WHERE local_id=?", (uid,))
+                db.execute(
+                    "DELETE FROM pending WHERE local_id=? AND generation=?",
+                    (uid, row["generation"]),
+                )
             return self.state(uid, name, admin, False)
         if action == "refresh":
             self.refresh(uid, force=True)
@@ -452,52 +493,62 @@ class ProfileLinks:
         for key in ["access_token", "refresh_token"]:
             if not re.fullmatch(r"[A-Za-z0-9_-]{40,200}", str(result.get(key, ""))):
                 raise AccountLinkError("Invalid KagNode account token response.", 502)
-        profile = self.profile(
-            self.transport(
-                "GET",
-                "profile?" + urlencode({"client_id": self.client}),
-                token=result["access_token"],
-            )
-        )
-        with self.db() as db:
-            db.execute("BEGIN IMMEDIATE")
-            policy = db.execute(
-                "SELECT enabled,generation FROM policy WHERE id=1"
-            ).fetchone()
-            if (
-                not policy["enabled"]
-                or not self.enabled()[0]
-                or self.stamp(uid) != expected_stamp
-            ):
-                self.revoke(result["refresh_token"])
-                raise AccountLinkError("Account sync settings changed. Try again.", 409)
-            other = db.execute(
-                "SELECT local_id FROM links WHERE subject=? AND local_id!=?",
-                (profile["subject"], str(uid)),
-            ).fetchone()
-            current = db.execute(
-                "SELECT subject FROM links WHERE local_id=?", (str(uid),)
-            ).fetchone()
-            if other or current and current[0] != profile["subject"]:
-                self.revoke(result["refresh_token"])
-                raise AccountLinkError(
-                    "Disconnect the previous account link before linking a different account.",
-                    409,
+        try:
+            profile = self.profile(
+                self.transport(
+                    "GET",
+                    "profile?" + urlencode({"client_id": self.client}),
+                    token=result["access_token"],
                 )
-            db.execute(
-                "INSERT OR REPLACE INTO links VALUES(?,?,?,?,?,0)",
-                (
-                    str(uid),
-                    profile["subject"],
-                    json.dumps(profile),
-                    result["refresh_token"],
-                    self.clock(),
-                ),
             )
-            db.execute(
-                "INSERT INTO audit(actor,action,created) VALUES(?,?,?)",
-                (str(uid), "profile.sync", self.clock()),
-            )
+            with self.db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                policy = db.execute(
+                    "SELECT enabled,generation FROM policy WHERE id=1"
+                ).fetchone()
+                if (
+                    not policy["enabled"]
+                    or not self.enabled()[0]
+                    or self.stamp(uid) != expected_stamp
+                ):
+                    raise AccountLinkError(
+                        "Account sync settings changed. Try again.", 409
+                    )
+                other = db.execute(
+                    "SELECT local_id FROM links WHERE subject=? AND local_id!=?",
+                    (profile["subject"], str(uid)),
+                ).fetchone()
+                current = db.execute(
+                    "SELECT subject FROM links WHERE local_id=?", (str(uid),)
+                ).fetchone()
+                if other or current and current[0] != profile["subject"]:
+                    raise AccountLinkError(
+                        "Disconnect the previous account link before linking a different account.",
+                        409,
+                    )
+                db.execute(
+                    "INSERT OR REPLACE INTO links VALUES(?,?,?,?,?,0)",
+                    (
+                        str(uid),
+                        profile["subject"],
+                        json.dumps(profile),
+                        result["refresh_token"],
+                        self.clock(),
+                    ),
+                )
+                db.execute(
+                    "INSERT INTO audit(actor,action,created) VALUES(?,?,?)",
+                    (str(uid), "profile.sync", self.clock()),
+                )
+        except Exception:
+            # Persist cleanup after releasing the transaction; the issuer may be offline.
+            with self.db() as db:
+                db.execute(
+                    "INSERT OR IGNORE INTO revocation_queue VALUES(?,?)",
+                    (result["refresh_token"], self.clock()),
+                )
+            self.flush_revocations(1)
+            raise
 
     def refresh(self, uid, force=False):
         expected_stamp = self.stamp(uid)
