@@ -651,6 +651,18 @@
             "type": "string",
             "maxLength": 1048576,
             "description": "Optional HTML alternative, at most 1 MiB encoded UTF-8. Requires nonempty plain-text body. Added in 0.5.0."
+          },
+          "unsubscribe_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Optional HTTPS one-click unsubscribe URL; provide with list_id. Generates typed list headers, never arbitrary headers."
+          },
+          "list_id": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]+$",
+            "description": "Newsletter list identifier; provide with unsubscribe_url."
           }
         }
       },
@@ -725,6 +737,18 @@
             "type": "string",
             "maxLength": 1048576,
             "description": "Optional HTML alternative, at most 1 MiB encoded UTF-8. Requires nonempty plain-text body. Added in 0.5.0."
+          },
+          "unsubscribe_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Optional HTTPS one-click unsubscribe URL; provide with list_id. Generates typed list headers, never arbitrary headers."
+          },
+          "list_id": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]+$",
+            "description": "Newsletter list identifier; provide with unsubscribe_url."
           }
         }
       },
