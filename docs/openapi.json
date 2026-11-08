@@ -46,9 +46,7 @@
                       }
                     }
                   },
-                  "required": [
-                    "items"
-                  ]
+                  "required": ["items"]
                 }
               }
             }
@@ -71,14 +69,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "inbox",
-                "sent",
-                "drafts",
-                "archive",
-                "trash",
-                "junk"
-              ],
+              "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"],
               "default": "inbox"
             }
           },
@@ -142,14 +133,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "inbox",
-                "sent",
-                "drafts",
-                "archive",
-                "trash",
-                "junk"
-              ],
+              "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"],
               "default": "inbox"
             }
           },
@@ -211,14 +195,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "inbox",
-                "sent",
-                "drafts",
-                "archive",
-                "trash",
-                "junk"
-              ],
+              "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"],
               "default": "inbox"
             }
           },
@@ -433,38 +410,23 @@
                 "type": "integer"
               }
             },
-            "required": [
-              "code",
-              "message"
-            ]
+            "required": ["code", "message"]
           }
         },
-        "required": [
-          "error"
-        ]
+        "required": ["error"]
       },
       "Folder": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "enum": [
-              "inbox",
-              "sent",
-              "drafts",
-              "archive",
-              "trash",
-              "junk"
-            ]
+            "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"]
           },
           "name": {
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "name"
-        ]
+        "required": ["id", "name"]
       },
       "MessageSummary": {
         "type": "object",
@@ -512,14 +474,7 @@
           },
           "folder": {
             "type": "string",
-            "enum": [
-              "inbox",
-              "sent",
-              "drafts",
-              "archive",
-              "trash",
-              "junk"
-            ]
+            "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"]
           },
           "uidvalidity": {
             "type": "string",
@@ -536,14 +491,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "items",
-          "folder",
-          "uidvalidity",
-          "total",
-          "page",
-          "pages"
-        ]
+        "required": ["items", "folder", "uidvalidity", "total", "page", "pages"]
       },
       "Message": {
         "type": "object",
@@ -574,14 +522,7 @@
           },
           "folder": {
             "type": "string",
-            "enum": [
-              "inbox",
-              "sent",
-              "drafts",
-              "archive",
-              "trash",
-              "junk"
-            ]
+            "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"]
           },
           "uidvalidity": {
             "type": "string",
@@ -600,10 +541,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "name"
-              ]
+              "required": ["id", "name"]
             }
           }
         },
@@ -685,18 +623,10 @@
             }
           },
           "warning": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
-        "required": [
-          "status",
-          "message_id",
-          "refused",
-          "warning"
-        ]
+        "required": ["status", "message_id", "refused", "warning"]
       },
       "DraftInput": {
         "type": "object",
@@ -762,10 +692,7 @@
             "const": "drafts"
           },
           "uid": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "uidvalidity": {
             "type": "string",
@@ -773,33 +700,17 @@
             "description": "UIDVALIDITY from the listing of this folder. Refresh on 409."
           },
           "warning": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
-        "required": [
-          "ok",
-          "folder",
-          "uid",
-          "uidvalidity",
-          "warning"
-        ]
+        "required": ["ok", "folder", "uid", "uidvalidity", "warning"]
       },
       "ActionInput": {
         "type": "object",
         "properties": {
           "folder": {
             "type": "string",
-            "enum": [
-              "inbox",
-              "sent",
-              "drafts",
-              "archive",
-              "trash",
-              "junk"
-            ]
+            "enum": ["inbox", "sent", "drafts", "archive", "trash", "junk"]
           },
           "uidvalidity": {
             "type": "string",
@@ -821,11 +732,7 @@
             ]
           }
         },
-        "required": [
-          "folder",
-          "uidvalidity",
-          "action"
-        ]
+        "required": ["folder", "uidvalidity", "action"]
       },
       "Success": {
         "type": "object",
@@ -834,15 +741,10 @@
             "const": true
           },
           "warning": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
-        "required": [
-          "ok"
-        ]
+        "required": ["ok"]
       }
     },
     "responses": {
