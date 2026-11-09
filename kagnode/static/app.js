@@ -400,10 +400,6 @@ async function route() {
   document.documentElement.dataset.mailLayout = mailbox ? "mail" : "settings";
   $("#sidebar").hidden = mailbox;
   $("#mail-navigation").hidden = !mailbox;
-  $("#mail-folder-host").append($("#mail-nav"));
-  $("#mail-nav").setAttribute("aria-label", "Mail folders");
-  $("#mail-nav").removeAttribute("aria-labelledby");
-  $("#mail-compose-host").append($("#compose-button"));
   window.KagNodeCore?.refresh();
   if (page !== "tokens" && $("#token-secret")) $("#form-dialog").close();
   setSidebar(false);
@@ -413,9 +409,10 @@ async function route() {
     if (active) n.setAttribute("aria-current", "page");
     else n.removeAttribute("aria-current");
   });
-  $(".sidebar-navigation [aria-current=page]")?.scrollIntoView({
-    block: "nearest",
-  });
+  const activeNavigation = mailbox
+    ? $("#mail-nav [aria-current=page]")
+    : $(".sidebar-navigation [aria-current=page]");
+  activeNavigation?.scrollIntoView({ block: "nearest", inline: "nearest" });
   $("#mail-view").hidden = !folders.some((f) => f[0] === page);
   $("#admin-view").hidden = !adminPages.some((f) => f[0] === page);
   $("#account-view").hidden = page !== "account";

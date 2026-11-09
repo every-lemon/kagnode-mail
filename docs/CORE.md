@@ -15,3 +15,9 @@ Core 1.0.5 supplies KagNode’s split-orbit spinner. The canonical logo stays st
 ## Binding and reviewed application upgrades
 
 The explicit baseline above matches this source’s pinned fallback; do not rely on an older manager’s implicit 1.0.x default. With Core manager 1.2.0 or newer, prefer `--lock-file /path/to/app/core.lock.json` instead of `--baseline` to read the adapter version and automatic-update preference from the reviewed application declaration. Existing bindings are retained by `bind`. Follow the [reviewed application upgrade workflow](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md#reviewed-application-upgrades) to adopt a changed baseline explicitly after verifying current UI rollback assets and retaining the app’s source/data backup. Web UI patch controls cannot perform that minor-version adoption.
+
+## Mail and settings navigation
+
+The mail reader uses the full content width. Its six folder links and Compose control live outside the workspace sidebar; the folder row scrolls horizontally on narrow screens and keeps the current destination visible. Account settings and mail administration use Core’s shared sidebar and mobile drawer. Core continues to own account menus, drawer behavior, appearance and loading.
+
+`python tests/browser_navigation.py` checks these actual routes against disposable demo accounts and a fake mail transport. Set `KAGNODE_BROWSER_ENGINE=webkit` to run the same desktop, tablet and phone checks in WebKit. The fixture does not send mail or access production accounts.

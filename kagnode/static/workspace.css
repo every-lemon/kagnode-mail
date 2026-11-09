@@ -639,11 +639,13 @@ html[data-mail-layout="mail"] .mobile-brand {
   min-width: 0;
 }
 .mail-folder-host {
-  overflow: auto;
+  overflow-x: auto;
   min-width: 0;
+  scroll-padding-inline: 4px;
 }
 .mail-folder-host #mail-nav {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 4px;
   width: max-content;
