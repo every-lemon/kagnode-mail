@@ -1,3 +1,7 @@
+## Mail folder navigation preview
+
+Keep mail folders and Compose in a compact horizontal bar outside the workspace sidebar. Account settings and mail administration retain the shared Core navigation. The active folder stays visible on narrow screens, including after quick navigation and reload. This web-only change preserves mailbox data, API behavior and native services.
+
 ## Ecosystem update panel — packaging preview 2
 
 ## Update recovery status preview

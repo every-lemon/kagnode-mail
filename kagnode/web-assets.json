@@ -5,9 +5,9 @@
     "bytes": 30326
   },
   "app.js": {
-    "file": "app.6b5e0c0e0328e0e5.js",
-    "sha256": "6b5e0c0e0328e0e5e810634d5c2c698b47f7d03812f95392616c326ad711453e",
-    "bytes": 37985
+    "file": "app.e81b46eb49494264.js",
+    "sha256": "e81b46eb4949426443cfeb328e13990dc53566d574f3e8424611b7fea251a9b2",
+    "bytes": 37830
   },
   "kagnode-account.css": {
     "file": "kagnode-account.03993f2713b5d5b5.css",
@@ -35,8 +35,8 @@
     "bytes": 5291
   },
   "workspace.css": {
-    "file": "workspace.afa5b443f4f14ac9.css",
-    "sha256": "afa5b443f4f14ac969ed01d8e23f4d9bdb45a378d8ebfeed2b2a6f9858e73ceb",
-    "bytes": 9623
+    "file": "workspace.6d738bac3cabe6ee.css",
+    "sha256": "6d738bac3cabe6eec80c7c5c3212f2f0ad2cac9661e7baa65fcf6bd79b01e318",
+    "bytes": 9670
   }
 }
