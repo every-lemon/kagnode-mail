@@ -15,6 +15,7 @@ const state = {
   login_allowed: false,
   listFilter: "all",
   generation: 0,
+  authTransition: false,
 };
 const folders = [
   ["inbox", "Inbox", "inbox"],
@@ -127,6 +128,8 @@ function toast(text, error = false) {
   toastTimer = setTimeout(() => (t.hidden = true), error ? 10000 : 6000);
 }
 async function api(path, options = {}, allowReauth = true) {
+  const requestUser = state.user?.id;
+  const requestCsrf = state.csrf;
   const headers = {
     "X-CSRF-Token": state.csrf,
     ...options.headers,
@@ -160,7 +163,15 @@ async function api(path, options = {}, allowReauth = true) {
     return api(path, options, false);
   }
   if (!r.ok || !jsonResponse) {
-    if (r.status === 401 && path !== "/login" && path !== "/session") {
+    if (
+      r.status === 401 &&
+      path !== "/login" &&
+      path !== "/session" &&
+      requestUser != null &&
+      requestUser === state.user?.id &&
+      requestCsrf === state.csrf &&
+      !state.authTransition
+    ) {
       await boot();
     }
     throw new Error(data.error || "Request failed.");
@@ -380,6 +391,12 @@ async function boot() {
       nav();
       await route();
     } else {
+      if (!providerAttempt) {
+        $("#login-form").elements.email.readOnly = false;
+        $("#provider-mailbox-note").hidden = true;
+        $("#provider-local-login").hidden = true;
+        window.KagNodeLogin?.reset($("#provider-login"));
+      }
       state.messages = [];
       state.current = null;
       state.admin = null;
@@ -1998,10 +2015,7 @@ function renderAccount() {
     busy($("button", f), async () => {
       await api("/account/password", {
         method: "POST",
-        body: {
-          ...Object.fromEntries(new FormData(f)),
-          ...(providerAttempt ? { provider_attempt: providerAttempt } : {}),
-        },
+        body: Object.fromEntries(new FormData(f)),
       });
       toast("Password updated. Sign in with your new password.");
       await boot();
@@ -2099,7 +2113,10 @@ $("#login-form").addEventListener("submit", (ev) => {
   b.disabled = true;
   api("/login", {
     method: "POST",
-    body: Object.fromEntries(new FormData(f)),
+    body: {
+      ...Object.fromEntries(new FormData(f)),
+      ...(providerAttempt ? { provider_attempt: providerAttempt } : {}),
+    },
   })
     .then(async () => {
       f.elements.password.value = "";
@@ -2112,12 +2129,29 @@ $("#login-form").addEventListener("submit", (ev) => {
     .catch((e) => ($("#login-error").textContent = e.message))
     .finally(() => (b.disabled = false));
 });
+$("#provider-local-login").addEventListener("click", async (event) => {
+  event.preventDefault();
+  const attempt = providerAttempt;
+  providerAttempt = "";
+  if (attempt)
+    await api("/kagnode-login", {
+      method: "POST",
+      body: { action: "cancel", attempt_id: attempt },
+    }).catch(() => {});
+  $("#login-form").elements.password.value = "";
+  await boot();
+});
 $("#logout-button").addEventListener("click", () =>
   busy($("#logout-button"), async () => {
-    await api("/logout", {
-      method: "POST",
-    });
-    await boot();
+    state.authTransition = true;
+    try {
+      await api("/logout", {
+        method: "POST",
+      });
+      await boot();
+    } finally {
+      state.authTransition = false;
+    }
   }),
 );
 $("#compose-button").addEventListener("click", () => compose());

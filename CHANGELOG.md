@@ -1,5 +1,7 @@
 # 1.2.0-preview.1
 
+- Bind the approved provider attempt to mailbox login, reset repeated sign-in controls, and keep disconnect/link-epoch changes atomic. Browser checks verify saved subjects and consumed attempts.
+
 - Use the locally served shared Core login frame with explicit KagNode confirmation and bounded, browser-bound sign-in attempts.
 - Refresh newly consented verified contact email alongside name and photo; preserve local policy, roles and offline sign-in.
 - Mail links an existing mailbox only. After KagNode identity confirmation, enter that mailbox’s password to open its local mail session. A provider token never substitutes for IMAP/SMTP credentials, creates a mailbox, changes an address, or grants administration.
