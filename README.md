@@ -8,11 +8,13 @@ Self-hosted mail, webmail and a server-only application mail API.
 
 ## Release status
 
-Product source: **1.1.0**. Packaging preview: **1.1.0-packaging.10**.
+Product source: **1.2.0-preview.1**. Packaging preview: **1.2.0-preview.1.packaging.11**.
 
 Packaging prereleases do not change the latest stable release or establish new hardware or service compatibility. See [verification](docs/VERIFICATION.md) and [changelog](CHANGELOG.md).
 
 ## Features
+
+- Shared local sign-in and explicit Login with KagNode; local access and security requirements stay available. See [account sign-in](docs/ACCOUNT-SYNC.md).
 
 - Mailboxes, folders, search, attachments, drafts and sender permissions.
 - Postfix, Dovecot and OpenDKIM integration with explicit administrator setup.

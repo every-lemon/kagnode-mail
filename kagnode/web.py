@@ -317,16 +317,24 @@ def create_app(overrides=None):
     def index():
         return render_template("index.html", kagnode_website=kagnode_website_url())
 
+    def local_login_allowed():
+        return bool(
+            app.config["DEMO"]
+            or app.config["TESTING"]
+            or (
+                request.is_secure
+                and request.host_url == "https://" + app.config["MAIL_HOSTNAME"] + "/"
+            )
+        )
+
     @app.get("/api/session")
     def current_session():
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(32)
+        if "provider_browser" not in session:
+            session["provider_browser"] = secrets.token_urlsafe(32)
         login_url = "https://" + app.config["MAIL_HOSTNAME"] + "/"
-        login_allowed = (
-            app.config["DEMO"]
-            or app.config["TESTING"]
-            or (request.is_secure and request.host_url == login_url)
-        )
+        login_allowed = local_login_allowed()
         return jsonify(
             user=public_user(g.user) if g.user else None,
             csrf=g.auth["csrf"] if g.user else session["csrf"],
@@ -335,11 +343,24 @@ def create_app(overrides=None):
             hostname=app.config["MAIL_HOSTNAME"],
             login_url=login_url,
             login_allowed=bool(login_allowed),
+            provider_enabled=bool(
+                login_allowed and not app.config["DEMO"] and account_signins.enabled()
+            ),
         )
 
     @app.post("/api/login")
     def login():
         data = request.get_json() or {}
+        if not local_login_allowed():
+            return jsonify(error="Open the secure mail address to sign in."), 403
+        attempt = str(data.get("provider_attempt", ""))
+        if attempt:
+            try:
+                identity = account_signins.verified(
+                    session.get("provider_browser", ""), attempt
+                )
+            except AccountLinkError as error:
+                return jsonify(error=str(error)), error.status
         email = str(data.get("email", "")).strip().lower()[:254]
         ipkey = "login-ip:" + hashlib.sha256(request.remote_addr.encode()).hexdigest()
         userkey = "login-user:" + hashlib.sha256(email.encode()).hexdigest()
@@ -356,7 +377,15 @@ def create_app(overrides=None):
         # Comparable work for unknown accounts to avoid a cheap account-existence oracle.
         fallback = "{SHA512-CRYPT}$6$rounds=100000$kagnodedummysalt$BpJLW4Z3LeEvwyAElAeQ9oqLCYEEERjKy/fj1NP7ZCLYHHyA6AFub3TOi9kL6bXBYAcKf8eGhQqBKsktza4rK0"
         valid = db.verify(pw, u["password"] if u else fallback)
-        if not u or not valid:
+        if (
+            not u
+            or not valid
+            or (
+                attempt
+                and identity["local_id"]
+                and identity["local_id"] != str(u["id"])
+            )
+        ):
             return jsonify(error="Email or password is incorrect."), 401
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         conn = getdb()
@@ -368,6 +397,13 @@ def create_app(overrides=None):
             if latest is None or latest["password"] != u["password"]:
                 return jsonify(error="Email or password is incorrect."), 401
             u = latest
+            if attempt:
+                try:
+                    account_signins.finish(
+                        session.get("provider_browser", ""), attempt, u["id"]
+                    )
+                except AccountLinkError as error:
+                    return jsonify(error=str(error)), error.status
             conn.execute("DELETE FROM sessions WHERE expires<?", (int(time.time()),))
             if g.auth:
                 conn.execute("DELETE FROM sessions WHERE token=?", (g.auth["token"],))
@@ -828,6 +864,67 @@ def create_app(overrides=None):
         Path(app.config["DATABASE"]).parent / "account-sync", "kagnode-mail"
     )
     app.extensions["kagnode_account"] = profile_links
+    from .account_login import AccountSignIns
+
+    account_signins = AccountSignIns(profile_links)
+    app.extensions["kagnode_signins"] = account_signins
+
+    @app.post("/api/kagnode-login")
+    def kagnode_login():
+        if g.user:
+            return jsonify(error="You are already signed in."), 409
+        if not local_login_allowed() or app.config["DEMO"]:
+            return jsonify(error="KagNode sign-in is unavailable at this address."), 403
+        body = request.get_json() or {}
+        action = body.get("action")
+        attempt = str(body.get("attempt_id", ""))
+        browser = session.get("provider_browser", "")
+        try:
+            if action == "start":
+                if not limit(
+                    "provider-ip:"
+                    + hashlib.sha256(request.remote_addr.encode()).hexdigest(),
+                    12,
+                    900,
+                ):
+                    return jsonify(
+                        error="Too many sign-in requests. Try again later."
+                    ), 429
+                result = account_signins.start(
+                    browser, "https://" + app.config["MAIL_HOSTNAME"]
+                )
+            elif action == "cancel":
+                result = account_signins.cancel(browser, attempt)
+            elif action == "status":
+                result = account_signins.status(browser, attempt)
+                if result.get("authorized"):
+                    verified = account_signins.verified(browser, attempt)
+                    linked = (
+                        getdb()
+                        .execute(
+                            "SELECT email FROM users WHERE id=? AND active=1",
+                            (verified["local_id"],),
+                        )
+                        .fetchone()
+                        if verified["local_id"]
+                        else None
+                    )
+                    if verified["local_id"] and not linked:
+                        account_signins.cancel(browser, attempt)
+                        return jsonify(
+                            error="This mailbox is unavailable. Contact its administrator."
+                        ), 403
+                    result.update(
+                        continuation="mailbox",
+                        email=linked[0] if linked else "",
+                        name=verified["profile"]["name"],
+                        linked=bool(linked),
+                    )
+            else:
+                return jsonify(error="Invalid sign-in action."), 400
+            return jsonify(result)
+        except AccountLinkError as error:
+            return jsonify(error=str(error)), error.status
 
     @app.route("/api/kagnode-account", methods=["GET", "POST"])
     @login_required

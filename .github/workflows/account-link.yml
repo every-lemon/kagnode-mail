@@ -35,3 +35,7 @@ jobs:
         with:
           name: mail-navigation-${{ matrix.engine }}
           path: .build/navigation/
+      - name: Local and KagNode sign-in journeys
+        run: python tests/browser_provider.py
+        env:
+          KAGNODE_BROWSER_ENGINE: ${{ matrix.engine }}

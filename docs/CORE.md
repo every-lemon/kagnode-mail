@@ -4,7 +4,7 @@ This application uses [KagNode Core](https://github.com/every-lemon/kagnode-core
 
 Application servers serve Core assets from their own origin. Browsers never fetch Core scripts from GitHub. Local accounts retain local sign-in and permissions. Appearance can connect directly to KagNode Account using a separate browser-only appearance grant; profile linking remains a distinct administrator setting.
 
-Only stable compatible UI patches may install automatically. Backend helpers, prereleases, minor/major versions and application updates require review. A Core patch cannot restart a service or run a backend hook. The local administrator sees status, update policy and rollback in settings. Use `sudo kagnode core bind mail --user SERVICE_USER --baseline 1.0.5` to bind the service and run the manager described in [Core operations](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md). Ordinary users cannot manage updates.
+Only stable compatible UI patches may install automatically. Backend helpers, prereleases, minor/major versions and application updates require review. A Core patch cannot restart a service or run a backend hook. The local administrator sees status, update policy and rollback in settings. Use `sudo kagnode core bind mail --user SERVICE_USER --baseline 1.3.1` to bind the service and run the manager described in [Core operations](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md). Ordinary users cannot manage updates.
 
 This preview upgrades web presentation. It does not qualify native services, codecs, HTTP Boot images, network hardware or a new stable application release. Keep application databases and deployment configuration in their existing locations. No data reset or native provisioning is part of Core integration.
 
@@ -21,3 +21,9 @@ The explicit baseline above matches this source’s pinned fallback; do not rely
 The mail reader uses the full content width. Its six folder links and Compose control live outside the workspace sidebar; the folder row scrolls horizontally on narrow screens and keeps the current destination visible. Account settings and mail administration use Core’s shared sidebar and mobile drawer. Core continues to own account menus, drawer behavior, appearance and loading.
 
 `python tests/browser_navigation.py` checks these actual routes against disposable demo accounts and a fake mail transport. Set `KAGNODE_BROWSER_ENGINE=webkit` to run the same desktop, tablet and phone checks in WebKit. The fixture does not send mail or access production accounts.
+
+## Shared sign-in frame
+
+The reviewed baseline is Core **1.3.1**, including the common sign-in card, bounded provider confirmation controller and viewport-clamped account menu. The host keeps its existing local form, CSRF policy, role checks and any required mailbox/vault password or second factor. Core receives only app-owned continuation state, never provider access/refresh credentials.
+
+`window.KagNodeLoginHost` supplies the application’s same-origin start/status/cancel operations; Core handles presentation, bounded polling, focus, cancellation and stale responses. Local fallback remains usable when KagNode is unavailable. Provider identity and appearance synchronization are separate grants. The exact readable source, generated offline SDK and lock are included together. Existing deployed bindings require explicit reviewed minor-baseline adoption after backup and acceptance; no prerelease manager bypass or automatic minor upgrade is permitted.
