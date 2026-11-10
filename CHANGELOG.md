@@ -1,3 +1,10 @@
+# 1.2.0-preview.1
+
+- Use the locally served shared Core login frame with explicit KagNode confirmation and bounded, browser-bound sign-in attempts.
+- Refresh newly consented verified contact email alongside name and photo; preserve local policy, roles and offline sign-in.
+- Mail links an existing mailbox only. After KagNode identity confirmation, enter that mailbox’s password to open its local mail session. A provider token never substitutes for IMAP/SMTP credentials, creates a mailbox, changes an address, or grants administration.
+- Web/source preview only; no native service or hardware qualification is implied.
+
 ## Mail folder navigation preview
 
 Keep mail folders and Compose in a compact horizontal bar outside the workspace sidebar. Account settings and mail administration retain the shared Core navigation. The active folder stays visible on narrow screens, including after quick navigation and reload. This web-only change preserves mailbox data, API behavior and native services.

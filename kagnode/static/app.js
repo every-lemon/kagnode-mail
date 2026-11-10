@@ -298,8 +298,32 @@ function nav() {
     ? "Administrator"
     : "Personal mailbox";
 }
+let providerAttempt = "";
+window.KagNodeLoginHost = {
+  state: () => ({ enabled: state.provider_enabled === true && !state.user }),
+  request: (action, data) =>
+    api("/kagnode-login", { method: "POST", body: { action, ...data } }),
+  complete: (result) => {
+    if (result.continuation !== "mailbox")
+      throw new Error("Invalid sign-in continuation.");
+    providerAttempt = result.attempt_id;
+    const form = $("#login-form");
+    form.elements.email.value = result.email || "";
+    form.elements.email.readOnly = result.linked === true;
+    form.elements.password.value = "";
+    const note = $("#provider-mailbox-note");
+    note.textContent = result.linked
+      ? "KagNode identity confirmed. Enter your mailbox password to open your mail."
+      : "KagNode identity confirmed. Sign in to an existing mailbox to link it. A mail administrator must create new mailboxes.";
+    note.hidden = false;
+    $("#provider-local-login").hidden = false;
+    (result.linked ? form.elements.password : form.elements.email).focus();
+  },
+};
 function renderLoginAccess(session) {
   const allowed = session.login_allowed === true;
+  $("#provider-login").hidden = !session.provider_enabled;
+  window.KagNodeLogin?.refresh();
   const form = $("#login-form");
   form.hidden = !allowed;
   for (const control of form.elements) control.disabled = !allowed;
@@ -1974,7 +1998,10 @@ function renderAccount() {
     busy($("button", f), async () => {
       await api("/account/password", {
         method: "POST",
-        body: Object.fromEntries(new FormData(f)),
+        body: {
+          ...Object.fromEntries(new FormData(f)),
+          ...(providerAttempt ? { provider_attempt: providerAttempt } : {}),
+        },
       });
       toast("Password updated. Sign in with your new password.");
       await boot();
@@ -2076,6 +2103,10 @@ $("#login-form").addEventListener("submit", (ev) => {
   })
     .then(async () => {
       f.elements.password.value = "";
+      f.elements.email.readOnly = false;
+      providerAttempt = "";
+      $("#provider-mailbox-note").hidden = true;
+      $("#provider-local-login").hidden = true;
       await boot();
     })
     .catch((e) => ($("#login-error").textContent = e.message))
