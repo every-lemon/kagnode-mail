@@ -380,6 +380,12 @@ async function boot() {
       nav();
       await route();
     } else {
+      if (!providerAttempt) {
+        $("#login-form").elements.email.readOnly = false;
+        $("#provider-mailbox-note").hidden = true;
+        $("#provider-local-login").hidden = true;
+        window.KagNodeLogin?.reset($("#provider-login"));
+      }
       state.messages = [];
       state.current = null;
       state.admin = null;
@@ -1998,10 +2004,7 @@ function renderAccount() {
     busy($("button", f), async () => {
       await api("/account/password", {
         method: "POST",
-        body: {
-          ...Object.fromEntries(new FormData(f)),
-          ...(providerAttempt ? { provider_attempt: providerAttempt } : {}),
-        },
+        body: Object.fromEntries(new FormData(f)),
       });
       toast("Password updated. Sign in with your new password.");
       await boot();
@@ -2099,7 +2102,10 @@ $("#login-form").addEventListener("submit", (ev) => {
   b.disabled = true;
   api("/login", {
     method: "POST",
-    body: Object.fromEntries(new FormData(f)),
+    body: {
+      ...Object.fromEntries(new FormData(f)),
+      ...(providerAttempt ? { provider_attempt: providerAttempt } : {}),
+    },
   })
     .then(async () => {
       f.elements.password.value = "";
@@ -2111,6 +2117,18 @@ $("#login-form").addEventListener("submit", (ev) => {
     })
     .catch((e) => ($("#login-error").textContent = e.message))
     .finally(() => (b.disabled = false));
+});
+$("#provider-local-login").addEventListener("click", async (event) => {
+  event.preventDefault();
+  const attempt = providerAttempt;
+  providerAttempt = "";
+  if (attempt)
+    await api("/kagnode-login", {
+      method: "POST",
+      body: { action: "cancel", attempt_id: attempt },
+    }).catch(() => {});
+  $("#login-form").elements.password.value = "";
+  await boot();
 });
 $("#logout-button").addEventListener("click", () =>
   busy($("#logout-button"), async () => {

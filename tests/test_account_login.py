@@ -279,3 +279,87 @@ def test_source_rate_is_bounded_and_recovers_after_window(issuer):
     assert failure.value.status == 429
     issuer.now += 901
     issuer.login.rate("fictional peer")
+
+
+def test_disconnected_link_cannot_be_recreated_with_a_new_epoch(issuer):
+    first = issuer.start()
+    issuer.login.status("B" * 43, first)
+    issuer.login.finish("B" * 43, first, "local-a")
+    attempt = issuer.start()
+    issuer.login.status("B" * 43, attempt)
+    issuer.links.handle("local-a", "A", False, "disconnect")
+    # Model a continuation produced by an older worker that captured the new
+    # epoch after selecting the pre-disconnect link. A missing link stays gone.
+    with issuer.links.db() as db:
+        db.execute(
+            "UPDATE sign_in_attempts SET link_stamp=? WHERE id=?",
+            (issuer.links.stamp("local-a"), attempt),
+        )
+    with pytest.raises(AccountLinkError):
+        issuer.login.finish("B" * 43, attempt, "local-a")
+    assert not issuer.links.state("local-a", "A", refresh=False)["connected"]
+
+
+def test_link_and_epoch_capture_excludes_a_concurrent_disconnect(issuer, monkeypatch):
+    import sqlite3
+
+    first = issuer.start()
+    issuer.login.status("B" * 43, first)
+    issuer.login.finish("B" * 43, first, "local-a")
+    attempt = issuer.start()
+    original = issuer.links.stamp
+    blocked = []
+
+    def capture(uid, connection=None):
+        # A separate writer cannot advance the epoch between link selection
+        # and its stamp. A zero busy timeout makes this check deterministic.
+        with sqlite3.connect(issuer.links.path, timeout=0) as competing:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                competing.execute("BEGIN IMMEDIATE")
+        blocked.append(True)
+        return original(uid, connection)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(issuer.links, "stamp", capture)
+        issuer.login.status("B" * 43, attempt)
+    assert blocked == [True]
+    issuer.links.handle("local-a", "A", False, "disconnect")
+    with pytest.raises(AccountLinkError):
+        issuer.login.finish("B" * 43, attempt, "local-a")
+
+
+def test_disconnect_epoch_and_link_removal_are_one_visible_change(issuer, monkeypatch):
+    import contextlib
+    import sqlite3
+
+    first = issuer.start()
+    issuer.login.status("B" * 43, first)
+    issuer.login.finish("B" * 43, first, "local-a")
+    before = issuer.links.stamp("local-a")
+    original = issuer.links.db
+    observed = []
+
+    @contextlib.contextmanager
+    def traced_database():
+        with original() as db:
+
+            def trace(statement):
+                if statement.startswith("DELETE FROM links"):
+                    with sqlite3.connect(issuer.links.path, timeout=0) as observer:
+                        epoch = observer.execute(
+                            "SELECT epoch FROM link_epochs WHERE local_id='local-a'"
+                        ).fetchone()
+                        linked = observer.execute(
+                            "SELECT 1 FROM links WHERE local_id='local-a'"
+                        ).fetchone()
+                        observed.append((epoch[0] if epoch else 0, bool(linked)))
+
+            db.set_trace_callback(trace)
+            yield db
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(issuer.links, "db", traced_database)
+        issuer.links.handle("local-a", "A", False, "disconnect")
+    assert observed == [(int(before.split(":")[1]), True)]
+    assert issuer.links.stamp("local-a") != before
+    assert not issuer.links.state("local-a", "A", refresh=False)["connected"]

@@ -274,23 +274,24 @@ try:
                     timeout=15000
                 )
             else:
-                issuer.pending = True
-                issuer.offline = False
-                provider = page.locator("[data-core-login-provider]")
-                provider.click()
-                expect(page.get_by_text("ABCDE-12345", exact=True)).to_be_visible(
-                    timeout=15000
-                )
-                page.get_by_role("button", name="Cancel connection").click()
-                expect(provider).to_be_enabled()
-                expect(page.locator("[data-core-login-status]")).to_contain_text(
-                    "cancelled"
-                )
-                issuer.offline = True
-                provider.click()
-                expect(page.locator("[data-core-login-status]")).to_contain_text(
-                    "Unable to connect", timeout=10000
-                )
+                if width == 390:
+                    issuer.pending = True
+                    issuer.offline = False
+                    provider = page.locator("[data-core-login-provider]")
+                    provider.click()
+                    expect(page.get_by_text("ABCDE-12345", exact=True)).to_be_visible(
+                        timeout=15000
+                    )
+                    page.get_by_role("button", name="Cancel connection").click()
+                    expect(provider).to_be_enabled()
+                    expect(page.locator("[data-core-login-status]")).to_contain_text(
+                        "cancelled"
+                    )
+                    issuer.offline = True
+                    provider.click()
+                    expect(page.locator("[data-core-login-status]")).to_contain_text(
+                        "Unable to connect", timeout=10000
+                    )
                 issuer.offline = False
                 issuer.pending = False
                 provider.click()
@@ -307,6 +308,35 @@ try:
             page.screenshot(
                 path=str(output / f"{args.engine}-{width}-continuation.png")
             )
+            if not actual and width == 390:
+                links = app.extensions["kagnode_account"]
+                with links.db() as connection:
+                    abandoned = connection.execute(
+                        "SELECT id FROM sign_in_attempts WHERE status='ready'"
+                    ).fetchone()[0]
+                page.get_by_role("link", name="Use local sign-in").click()
+                expect(page.locator("[data-core-login-provider]")).to_be_enabled()
+                field = page.locator(
+                    "#login-form [name=email]"
+                    if args.product == "mail"
+                    else "#auth-email"
+                )
+                assert not field.evaluate("element => element.readOnly")
+                with links.db() as connection:
+                    assert (
+                        connection.execute(
+                            "SELECT 1 FROM sign_in_attempts WHERE id=?", (abandoned,)
+                        ).fetchone()
+                        is None
+                    )
+                page.locator("[data-core-login-provider]").click()
+                expect(
+                    page.locator(
+                        "#provider-mailbox-note"
+                        if args.product == "mail"
+                        else "#provider-vault-note"
+                    )
+                ).to_be_visible(timeout=40000)
             email = (
                 page.locator("#login-form [name=email]")
                 if args.product == "mail"
@@ -319,6 +349,14 @@ try:
             )
             if args.product == "mail" and not email.evaluate("(e)=>e.readOnly"):
                 email.fill("local@example.test")
+            links = app.extensions["kagnode_account"]
+            with links.db() as connection:
+                continuation = connection.execute(
+                    "SELECT id,profile FROM sign_in_attempts WHERE status='ready'"
+                ).fetchone()
+            assert continuation is not None
+            expected_subject = json.loads(continuation["profile"])["subject"]
+            attempt_id = continuation["id"]
             password.fill(PASSWORD)
             if (
                 args.product == "passwords"
@@ -333,6 +371,38 @@ try:
             expect(
                 page.locator("#workspace" if args.product == "mail" else "#dashboard")
             ).to_be_visible(timeout=40000)
+            with links.db() as connection:
+                assert (
+                    connection.execute(
+                        "SELECT 1 FROM sign_in_attempts WHERE id=?", (attempt_id,)
+                    ).fetchone()
+                    is None
+                ), "The authorized continuation was not consumed"
+                linked = connection.execute(
+                    "SELECT local_id,subject FROM links WHERE subject=?",
+                    (expected_subject,),
+                ).fetchone()
+                assert linked is not None, (
+                    "Provider confirmation did not create the account link"
+                )
+            # The same SPA must permit a fresh provider attempt after sign-out;
+            # closing the page here would hide a stuck Core completed marker.
+            page.locator("[data-core-account-trigger]").click()
+            page.locator("[data-core-account-menu] button").last.click()
+            expect(
+                page.locator(
+                    "#login-view" if args.product == "mail" else "#auth-screen"
+                )
+            ).to_be_visible()
+            expect(page.locator("[data-core-login-provider]")).to_be_enabled()
+            if not actual:
+                issuer.pending = True
+            page.locator("[data-core-login-provider]").click()
+            expect(page.get_by_role("button", name="Cancel connection")).to_be_visible(
+                timeout=15000
+            )
+            page.get_by_role("button", name="Cancel connection").click()
+            expect(page.locator("[data-core-login-provider]")).to_be_enabled()
             assert not external, external
             assert not errors, errors
             context.close()
@@ -341,10 +411,14 @@ try:
                     "engine": args.engine,
                     "width": width,
                     "local_login": True,
-                    "cancel": not bool(actual),
-                    "issuer_failure": not bool(actual),
+                    "cancel": not bool(actual) and width == 390,
+                    "issuer_failure": not bool(actual) and width == 390,
                     "actual_issuer": bool(actual),
                     "explicit_completion": True,
+                    "authorization_consumed": True,
+                    "subject_linked": True,
+                    "repeat_provider_after_signout": True,
+                    "local_fallback_cancels": not bool(actual) and width == 390,
                     "external_requests": 0,
                     "page_errors": 0,
                 }

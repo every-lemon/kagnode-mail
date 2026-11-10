@@ -9,7 +9,8 @@ jobs:
   browser:
     name: Account link browser (${{ matrix.engine }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # WebKit system dependencies can exceed ten minutes on a cold runner.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

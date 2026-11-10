@@ -358,11 +358,12 @@ class AccountSignIns:
             profile, expires = self.validate(row, value)
             self.row(browser, attempt)
             with self.profiles.db() as db:
+                db.execute("BEGIN IMMEDIATE")
                 linked = db.execute(
                     "SELECT local_id FROM links WHERE subject=?", (profile["subject"],)
                 ).fetchone()
                 local_id = linked[0] if linked else ""
-                stamp = self.profiles.stamp(local_id) if local_id else ""
+                stamp = self.profiles.stamp(local_id, db) if local_id else ""
                 changed = db.execute(
                     "UPDATE sign_in_attempts SET status='ready',profile=?,tokens=?,expires=?,local_id=?,link_stamp=? WHERE id=? AND status='polling'",
                     (
@@ -431,7 +432,7 @@ class AccountSignIns:
             ).fetchall()
             if (
                 row["local_id"]
-                and row["local_id"] != uid
+                and (row["local_id"] != uid or not existing)
                 or any(
                     r["local_id"] != uid or r["subject"] != profile["subject"]
                     for r in existing
@@ -440,7 +441,7 @@ class AccountSignIns:
                 raise AccountLinkError(
                     "Sign in locally to link this KagNode Account.", 409
                 )
-            if row["local_id"] and self.profiles.stamp(uid) != row["link_stamp"]:
+            if row["local_id"] and self.profiles.stamp(uid, db) != row["link_stamp"]:
                 raise AccountLinkError("The account link changed. Start again.", 409)
             for linked in existing:
                 if linked["refresh"] and linked["refresh"] != tokens["refresh_token"]:

@@ -175,14 +175,16 @@ class ProfileLinks:
             ).fetchone()
         return bool(row["enabled"]) and not self.configured_off(), row["generation"]
 
-    def stamp(self, uid):
-        with self.db() as db:
-            generation = db.execute(
-                "SELECT generation FROM policy WHERE id=1"
-            ).fetchone()[0]
-            row = db.execute(
-                "SELECT epoch FROM link_epochs WHERE local_id=?", (str(uid),)
-            ).fetchone()
+    def stamp(self, uid, connection=None):
+        if connection is None:
+            with self.db() as db:
+                return self.stamp(uid, db)
+        generation = connection.execute(
+            "SELECT generation FROM policy WHERE id=1"
+        ).fetchone()[0]
+        row = connection.execute(
+            "SELECT epoch FROM link_epochs WHERE local_id=?", (str(uid),)
+        ).fetchone()
         return str(generation) + ":" + str(row[0] if row else 0)
 
     def bump(self, uid):
@@ -388,8 +390,12 @@ class ProfileLinks:
             self.flush_revocations(1)
             return self.state(uid, name, admin, False)
         if action == "disconnect":
-            self.bump(uid)
             with self.db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute(
+                    "INSERT INTO link_epochs VALUES(?,1) ON CONFLICT(local_id) DO UPDATE SET epoch=epoch+1",
+                    (uid,),
+                )
                 row = db.execute(
                     "SELECT refresh FROM links WHERE local_id=?", (uid,)
                 ).fetchone()
