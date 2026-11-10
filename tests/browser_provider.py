@@ -387,6 +387,17 @@ try:
                 )
             # The same SPA must permit a fresh provider attempt after sign-out;
             # closing the page here would hide a stuck Core completed marker.
+            late_profile = []
+            if width == 390:
+                page.route(
+                    "**/api/kagnode-account?fixture_late=1",
+                    lambda route: late_profile.append(route),
+                    times=1,
+                )
+                with page.expect_request("**/api/kagnode-account?fixture_late=1"):
+                    page.evaluate(
+                        "window.__lateProfileSettled=false; void api('/kagnode-account?fixture_late=1').catch(() => {}).finally(() => { window.__lateProfileSettled=true; })"
+                    )
             page.locator("[data-core-account-trigger]").click()
             page.locator("[data-core-account-menu] button").last.click()
             expect(
@@ -401,6 +412,16 @@ try:
             expect(page.get_by_role("button", name="Cancel connection")).to_be_visible(
                 timeout=15000
             )
+            if late_profile:
+                late_profile[0].fulfill(
+                    status=401,
+                    content_type="application/json",
+                    body='{"error":"Fixture profile response belongs to the signed-out session."}',
+                )
+                page.wait_for_function("() => window.__lateProfileSettled")
+                expect(
+                    page.get_by_role("button", name="Cancel connection")
+                ).to_be_visible()
             page.get_by_role("button", name="Cancel connection").click()
             expect(page.locator("[data-core-login-provider]")).to_be_enabled()
             assert not external, external

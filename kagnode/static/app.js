@@ -15,6 +15,7 @@ const state = {
   login_allowed: false,
   listFilter: "all",
   generation: 0,
+  authTransition: false,
 };
 const folders = [
   ["inbox", "Inbox", "inbox"],
@@ -127,6 +128,8 @@ function toast(text, error = false) {
   toastTimer = setTimeout(() => (t.hidden = true), error ? 10000 : 6000);
 }
 async function api(path, options = {}, allowReauth = true) {
+  const requestUser = state.user?.id;
+  const requestCsrf = state.csrf;
   const headers = {
     "X-CSRF-Token": state.csrf,
     ...options.headers,
@@ -160,7 +163,15 @@ async function api(path, options = {}, allowReauth = true) {
     return api(path, options, false);
   }
   if (!r.ok || !jsonResponse) {
-    if (r.status === 401 && path !== "/login" && path !== "/session") {
+    if (
+      r.status === 401 &&
+      path !== "/login" &&
+      path !== "/session" &&
+      requestUser != null &&
+      requestUser === state.user?.id &&
+      requestCsrf === state.csrf &&
+      !state.authTransition
+    ) {
       await boot();
     }
     throw new Error(data.error || "Request failed.");
@@ -2132,10 +2143,15 @@ $("#provider-local-login").addEventListener("click", async (event) => {
 });
 $("#logout-button").addEventListener("click", () =>
   busy($("#logout-button"), async () => {
-    await api("/logout", {
-      method: "POST",
-    });
-    await boot();
+    state.authTransition = true;
+    try {
+      await api("/logout", {
+        method: "POST",
+      });
+      await boot();
+    } finally {
+      state.authTransition = false;
+    }
   }),
 );
 $("#compose-button").addEventListener("click", () => compose());
