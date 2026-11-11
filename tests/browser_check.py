@@ -25,8 +25,12 @@ with sync_playwright() as p:
     page.goto(URL)
     page.locator("#login-view").wait_for(state="visible")
     assert "KagNode Mail" in page.title()
-    assert page.locator("#login-view .brand-mark").evaluate(
-        "img => img.complete && img.naturalWidth > 0"
+    mark = page.locator("#login-view .kn-core-login-mark")
+    expect(mark).to_have_count(1)
+    expect(mark).to_be_visible()
+    assert mark.evaluate(
+        "svg => svg.namespaceURI === 'http://www.w3.org/2000/svg' && "
+        "svg.getBBox().width > 0 && svg.getBBox().height > 0"
     )
     page.screenshot(path=str(OUT / "login.png"), full_page=True)
     page.locator("[name=email]").fill("alex@example.com")
