@@ -46,12 +46,11 @@ def register_assets(app):
             response.direct_passthrough = False
             body = response.get_data(as_text=True)
             body = pattern.sub(
-                lambda match: match[1]
-                + "/static/built/"
-                + manifest[match[3]]["file"]
-                + match[4]
-                if match[3] in manifest
-                else match[0],
+                lambda match: (
+                    match[1] + "/static/built/" + manifest[match[3]]["file"] + match[4]
+                    if match[3] in manifest
+                    else match[0]
+                ),
                 body,
             )
             response.set_data(body)

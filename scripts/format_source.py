@@ -53,6 +53,7 @@ def run(check):
             not name.endswith(".json")
             or name in {"package-lock.json"}
             or "built/" in name
+            or name.startswith("vendor/")
         ):
             continue
         path = ROOT / name

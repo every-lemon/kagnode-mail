@@ -1,0 +1,10 @@
+{
+  "target": "kagnode/templates/index.html",
+  "product": "KagNode. Mail",
+  "heading": "Sign in",
+  "description": "Use your account to continue to KagNode Mail.",
+  "id": "login-view",
+  "hidden": true,
+  "heading_id": "login-title",
+  "description_id": ""
+}

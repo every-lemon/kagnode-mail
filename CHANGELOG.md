@@ -1,3 +1,10 @@
+# 5.0.0
+
+- Use the canonical Core 5 login frame, fields, provider flow and action icons.
+- Keep theme selection in account/settings; signed-out pages follow the system theme.
+- Preserve local credentials, explicit account linking, permissions and data compatibility.
+- Publish checked source/data assets with existing package identities and paths.
+
 # 1.2.0-preview.1
 
 - Bind the approved provider attempt to mailbox login, reset repeated sign-in controls, and keep disconnect/link-epoch changes atomic. Browser checks verify saved subjects and consumed attempts.

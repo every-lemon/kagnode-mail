@@ -27,9 +27,16 @@ HEADINGS = [
 
 
 def check():
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts/build-login.py"), "--check"], check=True
+    )
     cfg, product, preview = identity()
     readme = (ROOT / "README.md").read_text()
-    expected = f"Product source: **{product}**. Packaging preview: **{preview}**."
+    expected = (
+        f"Product source: **{product}**. Stable source/data release: **{preview}**."
+        if cfg.get("channel") == "stable"
+        else f"Product source: **{product}**. Packaging preview: **{preview}**."
+    )
     if expected not in readme:
         raise ValueError("README release status differs from the package identity")
     if re.findall(r"^## (.+)$", readme, re.M) != HEADINGS:
