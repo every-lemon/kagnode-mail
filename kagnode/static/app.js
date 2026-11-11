@@ -46,14 +46,24 @@ function el(tag, attrs = {}, ...children) {
   return n;
 }
 
+const iconAliases = {
+  shield: "security",
+  key: "password",
+  globe: "domains",
+  pen: "edit",
+  users: "community",
+  paperclip: "attachment",
+  mail: "envelope",
+  x: "close",
+  "arrow-up-right": "external",
+  lightbulb: "idea",
+};
 function icon(name) {
-  const n = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  n.setAttribute("class", "icon");
-  n.setAttribute("aria-hidden", "true");
-  const u = document.createElementNS(n.namespaceURI, "use");
-  u.setAttribute("href", "#i-" + name);
-  n.append(u);
-  return n;
+  const host = document.createElement("template");
+  host.innerHTML = window.KagNodeCore.icon(iconAliases[name] || name);
+  const svg = host.content.firstElementChild;
+  svg.classList.add("icon");
+  return svg;
 }
 
 function button(text, fn, cls = "button", sym) {

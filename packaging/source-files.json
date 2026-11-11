@@ -61,7 +61,7 @@
   "kagnode/static/app.css",
   "kagnode/static/app.js",
   "kagnode/static/apple-touch-icon.png",
-  "kagnode/static/built/app.a65a1360082b2d09.js",
+  "kagnode/static/built/app.c962972579b550d1.js",
   "kagnode/static/built/app.e797baedfb7a387d.css",
   "kagnode/static/built/kagnode-account.03993f2713b5d5b5.css",
   "kagnode/static/built/kagnode-account.57bef642e5cbee37.js",
@@ -89,6 +89,7 @@
   "pyproject.toml",
   "requirements-format.txt",
   "scripts/backup.sh",
+  "scripts/build-login.py",
   "scripts/build-web.py",
   "scripts/check-migration.py",
   "scripts/demo.py",
@@ -127,6 +128,8 @@
   "tests/test_token_transport.py",
   "vendor/core-source/LICENSE",
   "vendor/core-source/assets/ARTWORK-LICENSE",
+  "vendor/core-source/assets/icon-aliases.json",
+  "vendor/core-source/assets/icon-library/source.mjs",
   "vendor/core-source/assets/icons.json",
   "vendor/core-source/assets/mark.svg",
   "vendor/core-source/assets/provenance.json",
@@ -150,5 +153,8 @@
   "vendor/core-source/web/search.js",
   "vendor/core-source/web/theme.js",
   "vendor/core-source/web/toc.js",
-  "vendor/core-source/web/updates.js"
+  "vendor/core-source/web/updates.js",
+  "web/login-content.html",
+  "web/login-provider.html",
+  "web/login.json"
 ]

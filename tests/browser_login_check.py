@@ -26,9 +26,11 @@ with sync_playwright() as playwright:
     page.on("pageerror", lambda error: failures.append(str(error)))
     page.on(
         "request",
-        lambda request: submissions.append(request.url)
-        if request.method == "POST" and request.url.endswith("/api/login")
-        else None,
+        lambda request: (
+            submissions.append(request.url)
+            if request.method == "POST" and request.url.endswith("/api/login")
+            else None
+        ),
     )
     blocked = {
         "user": None,

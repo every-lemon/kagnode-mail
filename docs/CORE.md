@@ -1,12 +1,12 @@
-# KagNode Core integration preview
+# KagNode Core integration
 
 This application uses [KagNode Core](https://github.com/every-lemon/kagnode-core) for its sidebar, controls, scrolling, loading and account presentation. Its committed `core.lock.json` records the baseline and compatible stable UI patch line. Editable corresponding Core source is retained under `vendor/core-source/`; generated pinned fallbacks let the interface start offline.
 
 Application servers serve Core assets from their own origin. Browsers never fetch Core scripts from GitHub. Local accounts retain local sign-in and permissions. Appearance can connect directly to KagNode Account using a separate browser-only appearance grant; profile linking remains a distinct administrator setting.
 
-Only stable compatible UI patches may install automatically. Backend helpers, prereleases, minor/major versions and application updates require review. A Core patch cannot restart a service or run a backend hook. The local administrator sees status, update policy and rollback in settings. Use `sudo kagnode core bind mail --user SERVICE_USER --baseline 1.3.1` to bind the service and run the manager described in [Core operations](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md). Ordinary users cannot manage updates.
+Only stable compatible UI patches may install automatically. Backend helpers, prereleases, minor/major versions and application updates require review. A Core patch cannot restart a service or run a backend hook. The local administrator sees status, update policy and rollback in settings. Use `sudo kagnode core bind mail --user SERVICE_USER --baseline 5.0.1` to bind the service and run the manager described in [Core operations](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md). Ordinary users cannot manage updates.
 
-This preview upgrades web presentation. It does not qualify native services, codecs, HTTP Boot images, network hardware or a new stable application release. Keep application databases and deployment configuration in their existing locations. No data reset or native provisioning is part of Core integration.
+KagNode 5 provides the shared web presentation. Its stable source/data release does not establish new native-service, codec, HTTP Boot image or network-hardware qualification. Keep application databases and deployment configuration in their existing locations. No data reset or native provisioning is part of Core integration.
 
 ## Shared loading mark
 
@@ -14,7 +14,7 @@ Core 1.0.5 supplies KagNode’s split-orbit spinner. The canonical logo stays st
 
 ## Binding and reviewed application upgrades
 
-The explicit baseline above matches this source’s pinned fallback; do not rely on an older manager’s implicit 1.0.x default. With Core manager 1.2.0 or newer, prefer `--lock-file /path/to/app/core.lock.json` instead of `--baseline` to read the adapter version and automatic-update preference from the reviewed application declaration. Existing bindings are retained by `bind`. Follow the [reviewed application upgrade workflow](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md#reviewed-application-upgrades) to adopt a changed baseline explicitly after verifying current UI rollback assets and retaining the app’s source/data backup. Web UI patch controls cannot perform that minor-version adoption.
+The explicit baseline above matches this source’s pinned fallback; do not rely on an older manager’s implicit 1.0.x default. With Core manager 1.2.0 or newer, prefer `--lock-file /path/to/app/core.lock.json` instead of `--baseline` to read the adapter version and automatic-update preference from the reviewed application declaration. Existing bindings are retained by `bind`. Follow the [reviewed application upgrade workflow](https://github.com/every-lemon/kagnode-core/blob/main/docs/OPERATIONS.md#reviewed-application-upgrades) to adopt a changed baseline explicitly after verifying current UI rollback assets and retaining the app’s source/data backup. Web UI patch controls cannot perform a minor or major baseline adoption.
 
 ## Mail and settings navigation
 
@@ -24,6 +24,10 @@ The mail reader uses the full content width. Its six folder links and Compose co
 
 ## Shared sign-in frame
 
-The reviewed baseline is Core **1.3.1**, including the common sign-in card, bounded provider confirmation controller and viewport-clamped account menu. The host keeps its existing local form, CSRF policy, role checks and any required mailbox/vault password or second factor. Core receives only app-owned continuation state, never provider access/refresh credentials.
+The reviewed baseline is Core **5.0.1**, including the common sign-in card, bounded provider confirmation controller and viewport-clamped account menu. The host keeps its existing local form, CSRF policy, role checks and any required mailbox/vault password or second factor. Core receives only app-owned continuation state, never provider access/refresh credentials.
 
-`window.KagNodeLoginHost` supplies the application’s same-origin start/status/cancel operations; Core handles presentation, bounded polling, focus, cancellation and stale responses. Local fallback remains usable when KagNode is unavailable. Provider identity and appearance synchronization are separate grants. The exact readable source, generated offline SDK and lock are included together. Existing deployed bindings require explicit reviewed minor-baseline adoption after backup and acceptance; no prerelease manager bypass or automatic minor upgrade is permitted.
+`window.KagNodeLoginHost` supplies the application’s same-origin start/status/cancel operations; Core handles presentation, bounded polling, focus, cancellation and stale responses. Local fallback remains usable when KagNode is unavailable. Provider identity and appearance synchronization are separate grants. The exact readable source, generated offline SDK and lock are included together. Existing deployed bindings require explicit reviewed baseline adoption after backup and acceptance; no prerelease manager bypass or automatic minor upgrade is permitted.
+
+## KagNode 5 baseline
+
+Core **5.0.1** supplies the canonical login template, field and action styling, original icon geometry, responsive navigation and provider confirmation controller. The application retains only its local form content and behavior hooks. The readable pinned template and generated offline SDK are included. Existing installations require an explicit reviewed major-baseline adoption; the update manager never applies a major upgrade automatically. Appearance remains in account/settings, and signed-out pages follow system appearance.

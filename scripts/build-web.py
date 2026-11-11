@@ -4,6 +4,13 @@
 import argparse, hashlib, json, os, subprocess, tempfile
 from pathlib import Path
 
+import runpy
+
+# Shared login markup is generated only from the pinned Core template.
+runpy.run_path(
+    str(Path(__file__).with_name("build-login.py")), run_name="core_login_build"
+)
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "--package", required=True, help="Application package containing static/"

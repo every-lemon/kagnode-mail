@@ -25,6 +25,8 @@ def run(check):
         if name
         in {"web/gallery.html", "web/index.html", "authentactor/static/index.html"}
     ]
+    generated_login = json.loads((ROOT / "web/login.json").read_text())["target"]
+    selected = [name for name in selected if name != generated_login]
     if not selected:
         return
     command = (
