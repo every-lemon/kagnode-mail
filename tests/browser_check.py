@@ -34,6 +34,10 @@ with sync_playwright() as p:
     )
     page.screenshot(path=str(OUT / "login.png"), full_page=True)
     page.locator("[name=email]").fill("alex@example.com")
+    if not page.locator("#login-form [name=password]").is_visible():
+        page.locator("#login-form").get_by_role(
+            "button", name="Continue", exact=True
+        ).click()
     page.locator("#login-form [name=password]").fill("KagNodePreview2026!")
     page.route(
         "**/api/login",
@@ -42,11 +46,11 @@ with sync_playwright() as p:
         ),
         times=1,
     )
-    page.locator("#login-form button").click()
+    page.locator("#login-form button[type=submit]").click()
     page.locator("#login-error").filter(
         has_text="Too many requests. Please wait"
     ).wait_for()
-    page.locator("#login-form button").click()
+    page.locator("#login-form button[type=submit]").click()
     page.locator(".message-row").first.wait_for()
     # A mailbox outage has an explicit recovery action without retrying sends.
     page.route(
@@ -432,8 +436,12 @@ with sync_playwright() as p:
     page.locator("[data-core-account-menu] button").last.click()
     page.locator("#login-view").wait_for(state="visible")
     page.locator("[name=email]").fill("sam@example.com")
+    if not page.locator("#login-form [name=password]").is_visible():
+        page.locator("#login-form").get_by_role(
+            "button", name="Continue", exact=True
+        ).click()
     page.locator("#login-form [name=password]").fill("KagNodePreview2026!")
-    page.locator("#login-form button").click()
+    page.locator("#login-form button[type=submit]").click()
     page.locator("#workspace").wait_for(state="visible")
     assert page.locator("#admin-nav-wrap").is_hidden()
     page.goto(URL + "/#users")

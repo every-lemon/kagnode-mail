@@ -1,9 +1,10 @@
 """Browser-bound, fresh KagNode authorization; never a replacement for app policy.
 
-Device/access/refresh secrets remain in the private profile database. Applications
+Authorization and profile secrets remain in the private profile database. Applications
 must separately enforce local signup, role, MFA, mailbox and vault requirements.
 """
 
+import base64
 import hashlib
 import hmac
 import json
@@ -34,6 +35,25 @@ class AccountSignIns:
             """)
 
         with profiles.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            columns = {
+                row[1] for row in db.execute("PRAGMA table_info(sign_in_attempts)")
+            }
+            for name, default in [
+                ("flow", "device"),
+                ("request_id", ""),
+                ("redirect_uri", ""),
+                ("state_hash", ""),
+                ("verifier", ""),
+                ("failure", ""),
+            ]:
+                if name not in columns:
+                    db.execute(
+                        f"ALTER TABLE sign_in_attempts ADD COLUMN {name} TEXT NOT NULL DEFAULT '{default}'"
+                    )
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS sign_in_state ON sign_in_attempts(state_hash) WHERE state_hash!=''"
+            )
             db.execute(
                 "INSERT OR IGNORE INTO sign_in_secret VALUES(1,?)",
                 (secrets.token_hex(32),),
@@ -119,6 +139,16 @@ class AccountSignIns:
         return row
 
     def public(self, row):
+        if row["flow"] == "browser":
+            result = {
+                "pending": row["status"] != "ready",
+                "authorized": row["status"] == "ready",
+                "attempt_id": row["id"],
+                "expires_in": max(1, math.ceil(row["expires"] - self.clock())),
+            }
+            if row["status"] == "pending":
+                result["authorization_uri"] = row["verification"]
+            return result
         return {
             "pending": row["status"] != "ready",
             "authorized": row["status"] == "ready",
@@ -215,8 +245,202 @@ class AccountSignIns:
                 db.execute("DELETE FROM sign_in_attempts WHERE id=?", (attempt,))
             raise
 
+    def start_browser(
+        self, browser, installation, callback_path="/auth/kagnode/callback"
+    ):
+        """Start a confidential-server S256 flow; no code or verifier reaches JS."""
+        enabled, generation = self.profiles.enabled()
+        if not enabled:
+            raise AccountLinkError(
+                "KagNode Account is disabled. Use local sign-in.", 403
+            )
+        if callback_path not in (
+            "/auth/kagnode/callback",
+            "/manage/auth/kagnode/callback",
+        ):
+            raise AccountLinkError("Invalid sign-in callback configuration.", 500)
+        browser_key = self.browser_key(browser)
+        self.cleanup()
+        attempt, nonce, state, verifier = (secrets.token_urlsafe(32) for _ in range(4))
+        redirect_uri = installation + callback_path
+        challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .decode()
+            .rstrip("=")
+        )
+        with self.profiles.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute(
+                "SELECT * FROM sign_in_attempts WHERE browser=?", (browser_key,)
+            ).fetchall()
+            for row in previous:
+                self.forget(db, row)
+            if db.execute("SELECT COUNT(*) FROM sign_in_attempts").fetchone()[0] >= 128:
+                raise AccountLinkError("Sign-in is busy. Try again later.", 429)
+            db.execute(
+                "INSERT INTO sign_in_attempts(id,browser,nonce,installation,started,expires,generation,status,flow,redirect_uri,state_hash,verifier) VALUES(?,?,?,?,?,?,?,'starting','browser',?,?,?)",
+                (
+                    attempt,
+                    browser_key,
+                    nonce,
+                    installation,
+                    self.clock(),
+                    self.clock() + 600,
+                    generation,
+                    redirect_uri,
+                    hashlib.sha256(state.encode()).hexdigest(),
+                    verifier,
+                ),
+            )
+        for row in previous:
+            self.cancel_remote(row)
+        value = {}
+        try:
+            value = self.profiles.transport(
+                "POST",
+                "browser/start",
+                {
+                    "client_id": self.profiles.client,
+                    "installation": installation,
+                    "redirect_uri": redirect_uri,
+                    "scope": "profile.read email.read",
+                    "purpose": "sign_in",
+                    "nonce": nonce,
+                    "state": state,
+                    "code_challenge": challenge,
+                    "code_challenge_method": "S256",
+                },
+            )
+            request_id = value.get("request_id", "")
+            expires = value.get("expires_in")
+            if (
+                value.get("error")
+                or not isinstance(request_id, str)
+                or not re.fullmatch(r"[A-Za-z0-9_-]{43}", request_id)
+                or type(expires) not in (int, float)
+                or not 1 <= expires <= 600
+                or value.get("authorization_uri")
+                != self.profiles.issuer
+                + "/oauth/authorize?"
+                + urlencode({"request": request_id})
+            ):
+                raise AccountLinkError(
+                    "KagNode returned an invalid sign-in address. Try again locally.",
+                    502,
+                )
+            current = self.row(browser, attempt)
+            with self.profiles.db() as db:
+                changed = db.execute(
+                    "UPDATE sign_in_attempts SET status='pending',request_id=?,verification=?,expires=? WHERE id=? AND status='starting'",
+                    (
+                        request_id,
+                        value["authorization_uri"],
+                        min(self.clock() + expires, current["expires"]),
+                        attempt,
+                    ),
+                ).rowcount
+            if not changed:
+                raise AccountLinkError("The sign-in attempt changed. Start again.", 409)
+            return self.public(self.row(browser, attempt))
+        except Exception:
+            self.cancel_remote(
+                {
+                    "request_id": value.get("request_id", ""),
+                    "verifier": verifier,
+                    "device": "",
+                }
+            )
+            with self.profiles.db() as db:
+                db.execute("DELETE FROM sign_in_attempts WHERE id=?", (attempt,))
+            raise
+
+    def callback(self, browser, state, issuer, code="", error=""):
+        """Claim exactly once, bound to the initiating browser and returned issuer."""
+        browser_key = self.browser_key(browser)
+        if (
+            issuer != self.profiles.issuer
+            or not isinstance(state, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{43}", state)
+        ):
+            raise AccountLinkError(
+                "The sign-in callback did not match. Start again.", 403
+            )
+        with self.profiles.db() as db:
+            row = db.execute(
+                "SELECT * FROM sign_in_attempts WHERE browser=? AND state_hash=? AND flow='browser'",
+                (browser_key, hashlib.sha256(state.encode()).hexdigest()),
+            ).fetchone()
+        if not row:
+            raise AccountLinkError(
+                "The sign-in callback did not match. Start again.", 403
+            )
+        attempt = row["id"]
+        self.row(browser, attempt)
+        if bool(error) == bool(code) or (
+            code and not re.fullmatch(r"[A-Za-z0-9_-]{43,200}", code)
+        ):
+            raise AccountLinkError("The sign-in callback is invalid. Start again.", 400)
+        with self.profiles.db() as db:
+            changed = db.execute(
+                "UPDATE sign_in_attempts SET status='polling' WHERE id=? AND status='pending'",
+                (attempt,),
+            ).rowcount
+        if not changed:
+            raise AccountLinkError(
+                "This sign-in callback was already used. Start again.", 409
+            )
+        try:
+            if error:
+                raise AccountLinkError(
+                    "KagNode sign-in was cancelled or denied. Sign in locally or try again.",
+                    403,
+                )
+            value = self.profiles.transport(
+                "POST",
+                "token",
+                {
+                    "grant_type": "authorization_code",
+                    "client_id": self.profiles.client,
+                    "code": code,
+                    "redirect_uri": row["redirect_uri"],
+                    "code_verifier": row["verifier"],
+                },
+            )
+            self.authorize(browser, attempt, row, value)
+        except Exception:
+            # An ambiguous exchange is never retried. Query error text is never displayed.
+            self.cancel_remote(row)
+            with self.profiles.db() as db:
+                db.execute(
+                    "UPDATE sign_in_attempts SET status='failed',failure=?,verifier='' WHERE id=?",
+                    (
+                        "KagNode sign-in could not be completed. Start again or sign in locally.",
+                        attempt,
+                    ),
+                )
+            return attempt
+        with self.profiles.db() as db:
+            db.execute(
+                "UPDATE sign_in_attempts SET verifier='',state_hash='' WHERE id=?",
+                (attempt,),
+            )
+        return attempt
+
     def cancel_remote(self, row):
-        if row["device"]:
+        if "request_id" in row.keys() and row["request_id"] and row["verifier"]:
+            try:
+                self.profiles.transport(
+                    "POST",
+                    "browser/cancel",
+                    {
+                        "client_id": self.profiles.client,
+                        "request_id": row["request_id"],
+                        "code_verifier": row["verifier"],
+                    },
+                )
+            except AccountLinkError:
+                pass
+        elif row["device"]:
             try:
                 self.profiles.transport(
                     "POST",
@@ -302,7 +526,11 @@ class AccountSignIns:
 
     def status(self, browser, attempt):
         row = self.row(browser, attempt)
-        if row["status"] == "ready":
+        if row["status"] == "failed":
+            raise AccountLinkError(
+                row["failure"] or "KagNode sign-in failed. Start again.", 403
+            )
+        if row["status"] == "ready" or row["flow"] == "browser":
             return self.public(row)
         if row["status"] == "polling":
             return self.public(row)
@@ -350,6 +578,10 @@ class AccountSignIns:
                     ),
                 )
             return self.public(self.row(browser, attempt))
+        return self.authorize(browser, attempt, row, value)
+
+    def authorize(self, browser, attempt, row, value):
+        """Validate fresh proof and retain tokens only for a live local continuation."""
         try:
             if value.get("error"):
                 raise AccountLinkError(
@@ -383,7 +615,16 @@ class AccountSignIns:
         except Exception:
             token = value.get("refresh_token", "")
             with self.profiles.db() as db:
-                db.execute("DELETE FROM sign_in_attempts WHERE id=?", (attempt,))
+                if row["flow"] == "browser":
+                    db.execute(
+                        "UPDATE sign_in_attempts SET status='failed',tokens='',verifier='',failure=? WHERE id=?",
+                        (
+                            "KagNode sign-in could not be completed. Start again or sign in locally.",
+                            attempt,
+                        ),
+                    )
+                else:
+                    db.execute("DELETE FROM sign_in_attempts WHERE id=?", (attempt,))
                 if isinstance(token, str) and re.fullmatch(
                     r"[A-Za-z0-9_-]{40,200}", token
                 ):

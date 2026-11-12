@@ -29,6 +29,15 @@ class Issuer:
 
     def call(self, method, endpoint, data=None, token=None):
         self.calls.append((endpoint, data))
+        if endpoint == "browser/start":
+            self.device = data
+            return {
+                "request_id": "Q" * 43,
+                "authorization_uri": self.links.issuer
+                + "/oauth/authorize?request="
+                + "Q" * 43,
+                "expires_in": 600,
+            }
         if endpoint == "device":
             self.device = data
             return {

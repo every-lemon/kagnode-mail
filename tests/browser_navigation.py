@@ -85,6 +85,12 @@ with tempfile.TemporaryDirectory(prefix="kagnode-mail-navigation-") as temporary
                         page.locator('#login-form [name="email"]').fill(
                             "alex@example.com" if admin else "sam@example.com"
                         )
+                        if not page.locator(
+                            '#login-form [name="password"]'
+                        ).is_visible():
+                            page.locator("#login-form").get_by_role(
+                                "button", name="Continue", exact=True
+                            ).click()
                         page.locator('#login-form [name="password"]').fill(
                             "KagNodePreview2026!"
                         )

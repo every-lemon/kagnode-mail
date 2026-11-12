@@ -4,7 +4,7 @@
   "version_pattern": "version = \"([^\"]+)\"",
   "kind": "application",
   "license": "AGPL-3.0-only",
-  "revision": 12,
+  "revision": 13,
   "channel": "stable",
   "upgrade_fixture_version": "1.2.0-preview.1.packaging.11"
 }

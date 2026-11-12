@@ -98,6 +98,10 @@ with sync_playwright() as playwright:
     expect(page.locator("#login-form")).to_be_visible()
     expect(page.locator("#login-access")).to_be_hidden()
     page.locator("#login-form [name=email]").fill("alex@example.com")
+    if not page.locator("#login-form [name=password]").is_visible():
+        page.locator("#login-form").get_by_role(
+            "button", name="Continue", exact=True
+        ).click()
     page.locator("#login-form [name=password]").fill("KagNodePreview2026!")
     page.locator("#login-form button[type=submit]").click()
     expect(page.locator("#workspace")).to_be_visible(timeout=30000)

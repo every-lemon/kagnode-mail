@@ -42,6 +42,22 @@ def provider(client, app, tmp_path, linked=False):
     )
     assert started.status_code == 200, started.json
     attempt = started.json["attempt_id"]
+    from urllib.parse import urlencode
+
+    fake = client.application.extensions["kagnode_account"].transport.__self__
+    returned = client.get(
+        "/auth/kagnode/callback?"
+        + urlencode(
+            {"state": fake.device["state"], "iss": fake.links.issuer, "code": "C" * 43}
+        )
+    )
+    assert (
+        returned.status_code == 303 and returned.headers["Cache-Control"] == "no-store"
+    )
+    assert (
+        "code=" not in returned.headers["Location"]
+        and "state=" not in returned.headers["Location"]
+    )
     confirmed = client.post(
         "/api/kagnode-login",
         json={"action": "status", "attempt_id": attempt},
