@@ -231,6 +231,23 @@ try:
                 if url.startswith(origin + "/"):
                     route.continue_()
                     return
+                if actual and os.environ.get("KAGNODE_TEST_DIRECT_ISSUER"):
+                    if url.startswith(actual["origin"] + "/"):
+                        route.continue_()
+                        return
+                    if url.startswith(actual["issuer"] + "/"):
+                        import html
+
+                        route.fulfill(
+                            content_type="text/html",
+                            body='<meta http-equiv="refresh" content="0;url='
+                            + html.escape(
+                                actual["origin"] + url[len(actual["issuer"]) :],
+                                quote=True,
+                            )
+                            + '">',
+                        )
+                        return
                 if actual and url.startswith(actual["issuer"] + "/"):
                     # Preserve browser fetch metadata and cookies through the
                     # isolated loopback transport (APIRequestContext can rewrite them).
@@ -413,7 +430,15 @@ try:
 
             def approve():
                 if actual:
-                    page.wait_for_url(actual["issuer"] + "/**", timeout=20000)
+                    page.wait_for_url(
+                        (
+                            actual["origin"]
+                            if os.environ.get("KAGNODE_TEST_DIRECT_ISSUER")
+                            else actual["issuer"]
+                        )
+                        + "/**",
+                        timeout=20000,
+                    )
                     page.locator(
                         'form[action="/login"], button[name=decision][value=approve]'
                     ).first.wait_for(state="visible", timeout=20000)
@@ -542,6 +567,11 @@ try:
                     "engine": args.engine,
                     "width": width,
                     "actual_issuer": bool(actual),
+                    "issuer_browser_transport": "direct-loopback"
+                    if actual and os.environ.get("KAGNODE_TEST_DIRECT_ISSUER")
+                    else "canonical-https-proxy"
+                    if actual
+                    else "mock",
                     "local_progressive": True,
                     "same_tab_redirect": True,
                     "callback_scrubbed": True,
