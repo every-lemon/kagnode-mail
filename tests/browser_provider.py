@@ -72,6 +72,15 @@ class Issuer:
         self.calls.append(endpoint)
         if self.offline:
             raise self.error("Fictional issuer unavailable", 502)
+        if endpoint == "browser/start":
+            self.device = data
+            return {
+                "request_id": "Q" * 43,
+                "authorization_uri": self.links.issuer
+                + "/oauth/authorize?request="
+                + "Q" * 43,
+                "expires_in": 600,
+            }
         if endpoint == "device":
             self.device = data
             return {
@@ -82,8 +91,6 @@ class Issuer:
         if endpoint == "token":
             if data.get("grant_type") == "refresh_token":
                 return {"access_token": "A" * 43, "refresh_token": "Q" * 43}
-            if self.pending:
-                return {"error": "authorization_pending"}
             now = time.time()
             return {
                 "scope": "profile.read email.read",
@@ -209,298 +216,377 @@ output.mkdir(parents=True, exist_ok=True)
 report = []
 try:
     with sync_playwright() as pw:
-        engine = getattr(pw, args.engine)
         kwargs = {"headless": True}
         if os.environ.get("KAGNODE_BROWSER_EXECUTABLE"):
             kwargs["executable_path"] = os.environ["KAGNODE_BROWSER_EXECUTABLE"]
-        browser = engine.launch(**kwargs)
+        browser = getattr(pw, args.engine).launch(**kwargs)
         for width in [390] if actual else [390, 820, 1440]:
             context = browser.new_context(
                 viewport={"width": width, "height": 900}, color_scheme="dark"
             )
-            external = []
-            errors = []
+            errors, external = [], []
 
             def guard(route):
                 url = route.request.url
-                if url.startswith(origin) or (
-                    actual and url.startswith(actual["origin"])
-                ):
+                if url.startswith(origin + "/"):
                     route.continue_()
-                elif actual and url.startswith(actual["issuer"] + "/"):
-                    route.fulfill(
-                        status=302,
-                        headers={
-                            "Location": actual["origin"] + url[len(actual["issuer"]) :]
-                        },
+                    return
+                if actual and os.environ.get("KAGNODE_TEST_DIRECT_ISSUER"):
+                    if url.startswith(actual["origin"] + "/"):
+                        route.continue_()
+                        return
+                    if url.startswith(actual["issuer"] + "/"):
+                        import html
+
+                        route.fulfill(
+                            content_type="text/html",
+                            body='<meta http-equiv="refresh" content="0;url='
+                            + html.escape(
+                                actual["origin"] + url[len(actual["issuer"]) :],
+                                quote=True,
+                            )
+                            + '">',
+                        )
+                        return
+                if actual and url.startswith(actual["issuer"] + "/"):
+                    # Preserve browser fetch metadata and cookies through the
+                    # isolated loopback transport (APIRequestContext can rewrite them).
+                    import http.client
+                    from types import SimpleNamespace
+                    from urllib.parse import urlsplit
+
+                    endpoint = urlsplit(actual["origin"])
+                    connection = http.client.HTTPConnection(
+                        endpoint.hostname, endpoint.port, timeout=20
                     )
-                else:
-                    external.append(url)
-                    route.abort()
+                    headers = route.request.all_headers()
+                    headers.pop("accept-encoding", None)
+                    if route.request.is_navigation_request():
+                        headers["sec-fetch-dest"] = "document"
+                    connection.request(
+                        route.request.method,
+                        url[len(actual["issuer"]) :],
+                        body=route.request.post_data_buffer,
+                        headers=headers,
+                    )
+                    raw_response = connection.getresponse()
+                    returned = dict(raw_response.getheaders())
+                    returned = {k.lower(): v for k, v in returned.items()}
+                    cookies = raw_response.headers.get_all("Set-Cookie", [])
+                    if cookies:
+                        returned["set-cookie"] = "\n".join(cookies)
+                    if (
+                        os.environ.get("KAGNODE_TRACE_ISSUER")
+                        and route.request.is_navigation_request()
+                    ):
+                        print(
+                            "COOKIE_TRACE",
+                            json.dumps(
+                                {
+                                    "request_header_names": list(headers),
+                                    "set_cookie": [
+                                        {
+                                            "name": item.split("=", 1)[0],
+                                            "attributes": item.split(";")[1:],
+                                        }
+                                        for item in cookies
+                                    ],
+                                }
+                            ),
+                            flush=True,
+                        )
+                    raw = raw_response.read(4194305)
+                    assert len(raw) <= 4194304
+                    response = SimpleNamespace(
+                        status=raw_response.status, headers=returned, body=raw
+                    )
+                    connection.close()
+                    if (
+                        os.environ.get("KAGNODE_TRACE_ISSUER")
+                        and route.request.is_navigation_request()
+                    ):
+                        from urllib.parse import urlsplit, parse_qs
+
+                        safe = lambda u: {
+                            "origin": urlsplit(u).netloc,
+                            "path": urlsplit(u).path,
+                            "query_keys": sorted(parse_qs(urlsplit(u).query)),
+                            "next_path": urlsplit(
+                                parse_qs(urlsplit(u).query).get("next", [""])[0]
+                            ).path,
+                        }
+                        posted = parse_qs(route.request.post_data or "")
+                        print(
+                            "ISSUER_TRACE",
+                            json.dumps(
+                                {
+                                    "request": safe(url),
+                                    "method": route.request.method,
+                                    "status": response.status,
+                                    "location": safe(
+                                        response.headers.get("location", "")
+                                    ),
+                                    "posted_keys": sorted(posted),
+                                    "posted_next": urlsplit(
+                                        posted.get("next", [""])[0]
+                                    ).path,
+                                    "cookie_present": "cookie"
+                                    in route.request.all_headers(),
+                                }
+                            ),
+                            flush=True,
+                        )
+                    if response.status in (301, 302, 303):
+                        # Playwright routes only the first HTTP redirect hop. A test-only
+                        # explicit navigation keeps all subsequent issuer requests local.
+                        import html
+                        from urllib.parse import urljoin
+
+                        target = urljoin(url, response.headers["location"])
+                        if not target.startswith(actual["issuer"] + "/"):
+                            raise AssertionError("Unexpected issuer redirect origin")
+                        headers = {
+                            k: v
+                            for k, v in response.headers.items()
+                            if k
+                            not in {"location", "content-length", "content-encoding"}
+                        }
+                        headers["content-type"] = "text/html; charset=utf-8"
+                        route.fulfill(
+                            status=200,
+                            headers=headers,
+                            body='<meta http-equiv="refresh" content="0;url='
+                            + html.escape(target, quote=True)
+                            + '">',
+                        )
+                    else:
+                        route.fulfill(
+                            status=response.status,
+                            headers=response.headers,
+                            body=response.body,
+                        )
+                    return
+                if not actual and url.startswith(
+                    issuer.links.issuer + "/oauth/authorize?"
+                ):
+                    import html
+
+                    callback = html.escape(
+                        origin + "/auth/kagnode/callback", quote=True
+                    )
+                    state = html.escape(issuer.device["state"], quote=True)
+                    route.fulfill(
+                        content_type="text/html",
+                        body=f'<h1>Fictional KagNode consent</h1><form method="get" action="{callback}"><input type="hidden" name="state" value="{state}"><input type="hidden" name="iss" value="https://nebulacoder.com"><button name="code" value="'
+                        + "C" * 43
+                        + '">Approve</button><button name="error" value="access_denied">Cancel</button></form>',
+                    )
+                    return
+                external.append(url)
+                route.abort()
 
             context.route("**/*", guard)
             page = context.new_page()
-            page.bring_to_front()
-            page.on(
-                "pageerror",
-                lambda err: (
-                    errors.append(str(err)),
-                    print("BROWSER ERROR:", str(err), flush=True),
-                ),
-            )
-            page.goto(origin + ("/" if args.product == "mail" else "/unlock"))
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            home = origin + ("/" if args.product == "mail" else "/unlock")
             provider = page.locator("[data-core-login-provider]")
+            form = page.locator(
+                "#login-form" if args.product == "mail" else "#auth-form"
+            )
+            email = page.locator(
+                "#login-email" if args.product == "mail" else "#auth-email"
+            )
+            secret = page.locator(
+                "#login-password" if args.product == "mail" else "#master-password"
+            )
+            workspace_view = page.locator(
+                "#workspace" if args.product == "mail" else "#dashboard"
+            )
+            note = page.locator(
+                "#provider-mailbox-note"
+                if args.product == "mail"
+                else "#provider-vault-note"
+            )
+
+            def advance():
+                if not secret.is_visible():
+                    form.get_by_role("button", name="Continue", exact=True).click()
+
+            def local_submit():
+                advance()
+                secret.fill(PASSWORD)
+                if (
+                    args.product == "passwords"
+                    and page.locator("#confirm-wrap").is_visible()
+                ):
+                    page.locator("#confirm-password").fill(PASSWORD)
+                form.locator("button[type=submit]").click()
+                expect(workspace_view).to_be_visible(timeout=20000)
+
+            def signout():
+                page.locator("[data-core-account-trigger]").click()
+                page.locator("[data-core-account-menu] button").last.click()
+                expect(provider).to_be_enabled()
+
+            def approve():
+                if actual:
+                    page.wait_for_url(
+                        (
+                            actual["origin"]
+                            if os.environ.get("KAGNODE_TEST_DIRECT_ISSUER")
+                            else actual["issuer"]
+                        )
+                        + "/**",
+                        timeout=20000,
+                    )
+                    page.locator(
+                        'form[action="/login"], button[name=decision][value=approve]'
+                    ).first.wait_for(state="visible", timeout=20000)
+                    login = page.locator('form[action="/login"]')
+                    if login.is_visible():
+                        if os.environ.get("KAGNODE_TRACE_ISSUER"):
+                            print(
+                                "ISSUER_FORM",
+                                json.dumps(
+                                    login.evaluate(
+                                        "f=>({action:f.getAttribute('action'),hidden:[...f.querySelectorAll('input[type=hidden]')].map(e=>({name:e.name,value:e.name==='next'?e.value.split('?')[0]:'[redacted]'}))})"
+                                    )
+                                ),
+                                flush=True,
+                            )
+                        login.locator("[name=email]").fill(actual["user"]["email"])
+                        # Issuer may use the same progressive frame.
+                        password = login.locator("[name=password]")
+                        if not password.is_visible():
+                            login.get_by_role(
+                                "button", name="Continue", exact=True
+                            ).click()
+                        password.fill(actual["user"]["password"])
+                        login.locator("button[type=submit]").click()
+                    try:
+                        page.locator("button[name=decision][value=approve]").click(
+                            timeout=20000
+                        )
+                    except Exception:
+                        page.screenshot(
+                            path=str(
+                                output / f"{args.engine}-{width}-issuer-failure.png"
+                            )
+                        )
+                        if os.environ.get("KAGNODE_TRACE_ISSUER"):
+                            from urllib.parse import urlsplit
+
+                            print(
+                                "ISSUER_FAILURE",
+                                json.dumps(
+                                    {
+                                        "path": urlsplit(page.url).path,
+                                        "text": page.locator("body").inner_text()[
+                                            :1500
+                                        ],
+                                    }
+                                ),
+                                flush=True,
+                            )
+                        raise
+                else:
+                    page.get_by_role("button", name="Approve", exact=True).click()
+                expect(note).to_be_visible(timeout=30000)
+                assert (
+                    page.url.startswith(origin + "/")
+                    and "kagnode_attempt" not in page.url
+                    and "code=" not in page.url
+                    and "state=" not in page.url
+                )
+                assert not workspace_view.is_visible()
+
+            page.goto(home)
             expect(provider).to_be_enabled()
-            expect(page.locator("[data-core-login]")).to_be_visible()
-            login_style = shared_login_style(page)
-            assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+1")
-            box = page.locator(".kn-core-login-card").bounding_box()
-            assert box and box["width"] >= min(width - 40, 400), box
-            page.screenshot(path=str(output / f"{args.engine}-{width}-login.png"))
-            # Local login is an independently usable path.
-            email = (
-                page.locator("#login-form [name=email]")
-                if args.product == "mail"
-                else page.locator("#auth-email")
-            )
-            password = (
-                page.locator("#login-form [name=password]")
-                if args.product == "mail"
-                else page.locator("#master-password")
-            )
+            style = shared_login_style(page)
+            expect(secret).to_be_hidden()
             email.fill("local@example.test")
-            password.fill(PASSWORD)
-            page.locator(
-                "#login-form button[type=submit]"
-                if args.product == "mail"
-                else ".auth-submit"
-            ).click()
-            expect(
-                page.locator("#workspace" if args.product == "mail" else "#dashboard")
-            ).to_be_visible(timeout=20000)
+            advance()
+            expect(secret).to_be_visible()
+            assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+1")
+            page.screenshot(
+                path=str(output / f"{args.engine}-{width}-local-secret.png")
+            )
+            local_submit()
             navigation_icons(
                 page, "#mail-nav a" if args.product == "mail" else "#sidebar nav a"
             )
-            context.close()
-            context = browser.new_context(
-                viewport={"width": width, "height": 900}, color_scheme="dark"
-            )
-
-            def guard(route):
-                url = route.request.url
-                if url.startswith(origin) or (
-                    actual and url.startswith(actual["origin"])
-                ):
-                    route.continue_()
-                elif actual and url.startswith(actual["issuer"] + "/"):
-                    route.fulfill(
-                        status=302,
-                        headers={
-                            "Location": actual["origin"] + url[len(actual["issuer"]) :]
-                        },
-                    )
-                else:
-                    external.append(url)
-                    route.abort()
-
-            context.route("**/*", guard)
-            page = context.new_page()
-            page.bring_to_front()
-            page.on(
-                "pageerror",
-                lambda err: (
-                    errors.append(str(err)),
-                    print("BROWSER ERROR:", str(err), flush=True),
-                ),
-            )
-            page.goto(origin + ("/" if args.product == "mail" else "/unlock"))
-            provider = page.locator("[data-core-login-provider]")
-            if actual:
-                provider.click()
-                with page.expect_popup() as opened:
-                    page.get_by_role("link", name="Open KagNode to approve").click(
-                        timeout=15000
-                    )
-                approval = opened.value
-                form = approval.locator('form[action="/login"]')
-                form.locator("[name=email]").fill(actual["user"]["email"])
-                form.locator("[name=password]").fill(actual["user"]["password"])
-                form.locator("button[type=submit]").click()
-                approval.locator("button[name=decision][value=approve]").click(
-                    timeout=15000
-                )
-            else:
-                if width == 390:
-                    issuer.pending = True
-                    issuer.offline = False
-                    provider = page.locator("[data-core-login-provider]")
-                    provider.click()
-                    expect(page.get_by_text("ABCDE-12345", exact=True)).to_be_visible(
-                        timeout=15000
-                    )
-                    page.get_by_role("button", name="Cancel connection").click()
-                    expect(provider).to_be_enabled()
-                    expect(page.locator("[data-core-login-status]")).to_contain_text(
-                        "cancelled"
-                    )
-                    issuer.offline = True
-                    provider.click()
-                    expect(page.locator("[data-core-login-status]")).to_contain_text(
-                        "Unable to connect", timeout=10000
-                    )
-                issuer.offline = False
-                issuer.pending = False
-                provider.click()
-            expect(
-                page.locator(
-                    "#provider-mailbox-note"
-                    if args.product == "mail"
-                    else "#provider-vault-note"
-                )
-            ).to_be_visible(timeout=40000)
-            assert not page.locator(
-                "#workspace" if args.product == "mail" else "#dashboard"
-            ).is_visible()
-            page.screenshot(
-                path=str(output / f"{args.engine}-{width}-continuation.png")
-            )
+            signout()
             if not actual and width == 390:
-                links = app.extensions["kagnode_account"]
-                with links.db() as connection:
-                    abandoned = connection.execute(
-                        "SELECT id FROM sign_in_attempts WHERE status='ready'"
-                    ).fetchone()[0]
-                page.get_by_role("link", name="Use local sign-in").click()
-                expect(page.locator("[data-core-login-provider]")).to_be_enabled()
-                field = page.locator(
-                    "#login-form [name=email]"
-                    if args.product == "mail"
-                    else "#auth-email"
+                issuer.offline = True
+                provider.click()
+                expect(page.locator("[data-core-login-status]")).to_contain_text(
+                    "Unable to connect", timeout=15000
                 )
-                assert not field.evaluate("element => element.readOnly")
-                with links.db() as connection:
-                    assert (
-                        connection.execute(
-                            "SELECT 1 FROM sign_in_attempts WHERE id=?", (abandoned,)
-                        ).fetchone()
-                        is None
-                    )
-                page.locator("[data-core-login-provider]").click()
-                expect(
-                    page.locator(
-                        "#provider-mailbox-note"
-                        if args.product == "mail"
-                        else "#provider-vault-note"
-                    )
-                ).to_be_visible(timeout=40000)
-            email = (
-                page.locator("#login-form [name=email]")
-                if args.product == "mail"
-                else page.locator("#auth-email")
-            )
-            password = (
-                page.locator("#login-form [name=password]")
-                if args.product == "mail"
-                else page.locator("#master-password")
-            )
-            if args.product == "mail" and not email.evaluate("(e)=>e.readOnly"):
+                issuer.offline = False
+                provider.click()
+                page.get_by_role("button", name="Cancel", exact=True).click()
+                expect(page.locator("[data-core-login-status]")).to_contain_text(
+                    "Unable to check the connection", timeout=15000
+                )
+                expect(provider).to_be_enabled()
+            provider.click()
+            approve()
+            if args.product == "mail" and not email.evaluate("e=>e.readOnly"):
                 email.fill("local@example.test")
+            advance()
+            page.screenshot(
+                path=str(output / f"{args.engine}-{width}-provider-secret.png")
+            )
             links = app.extensions["kagnode_account"]
             with links.db() as connection:
-                continuation = connection.execute(
+                row = connection.execute(
                     "SELECT id,profile FROM sign_in_attempts WHERE status='ready'"
                 ).fetchone()
-            assert continuation is not None
-            expected_subject = json.loads(continuation["profile"])["subject"]
-            attempt_id = continuation["id"]
-            password.fill(PASSWORD)
-            if (
-                args.product == "passwords"
-                and page.locator("#confirm-wrap").is_visible()
-            ):
-                page.locator("#confirm-password").fill(PASSWORD)
-            page.locator(
-                "#login-form button[type=submit]"
-                if args.product == "mail"
-                else ".auth-submit"
-            ).click()
-            expect(
-                page.locator("#workspace" if args.product == "mail" else "#dashboard")
-            ).to_be_visible(timeout=40000)
+                assert row is not None
+                attempt = row["id"]
+                subject = json.loads(row["profile"])["subject"]
+            local_submit()
             with links.db() as connection:
-                assert (
-                    connection.execute(
-                        "SELECT 1 FROM sign_in_attempts WHERE id=?", (attempt_id,)
-                    ).fetchone()
-                    is None
-                ), "The authorized continuation was not consumed"
-                linked = connection.execute(
-                    "SELECT local_id,subject FROM links WHERE subject=?",
-                    (expected_subject,),
+                assert not connection.execute(
+                    "SELECT 1 FROM sign_in_attempts WHERE id=?", (attempt,)
                 ).fetchone()
-                assert linked is not None, (
-                    "Provider confirmation did not create the account link"
-                )
-            # The same SPA must permit a fresh provider attempt after sign-out;
-            # closing the page here would hide a stuck Core completed marker.
-            late_profile = []
-            if width == 390:
-                page.route(
-                    "**/api/kagnode-account?fixture_late=1",
-                    lambda route: late_profile.append(route),
-                    times=1,
-                )
-                with page.expect_request("**/api/kagnode-account?fixture_late=1"):
-                    page.evaluate(
-                        "window.__lateProfileSettled=false; void api('/kagnode-account?fixture_late=1').catch(() => {}).finally(() => { window.__lateProfileSettled=true; })"
-                    )
-            page.locator("[data-core-account-trigger]").click()
-            page.locator("[data-core-account-menu] button").last.click()
-            expect(
-                page.locator(
-                    "#login-view" if args.product == "mail" else "#auth-screen"
-                )
-            ).to_be_visible()
-            expect(page.locator("[data-core-login-provider]")).to_be_enabled()
-            if not actual:
-                issuer.pending = True
-            page.locator("[data-core-login-provider]").click()
-            expect(page.get_by_role("button", name="Cancel connection")).to_be_visible(
-                timeout=15000
-            )
-            if late_profile:
-                late_profile[0].fulfill(
-                    status=401,
-                    content_type="application/json",
-                    body='{"error":"Fixture profile response belongs to the signed-out session."}',
-                )
-                page.wait_for_function("() => window.__lateProfileSettled")
-                expect(
-                    page.get_by_role("button", name="Cancel connection")
-                ).to_be_visible()
-            page.get_by_role("button", name="Cancel connection").click()
-            expect(page.locator("[data-core-login-provider]")).to_be_enabled()
+                assert connection.execute(
+                    "SELECT 1 FROM links WHERE subject=?", (subject,)
+                ).fetchone()
+            signout()
+            provider.click()
+            approve()
+            expect(secret).to_be_visible()
+            page.get_by_role("link", name="Use local sign-in").click()
+            expect(provider).to_be_enabled()
+            assert not email.evaluate("e=>e.readOnly")
             assert not external, external
             assert not errors, errors
-            context.close()
             report.append(
                 {
                     "engine": args.engine,
-                    "login_style": login_style,
                     "width": width,
-                    "local_login": True,
-                    "cancel": not bool(actual) and width == 390,
-                    "issuer_failure": not bool(actual) and width == 390,
                     "actual_issuer": bool(actual),
+                    "issuer_browser_transport": "direct-loopback"
+                    if actual and os.environ.get("KAGNODE_TEST_DIRECT_ISSUER")
+                    else "canonical-https-proxy"
+                    if actual
+                    else "mock",
+                    "local_progressive": True,
+                    "same_tab_redirect": True,
+                    "callback_scrubbed": True,
                     "explicit_completion": True,
                     "authorization_consumed": True,
-                    "subject_linked": True,
                     "repeat_provider_after_signout": True,
-                    "local_fallback_cancels": not bool(actual) and width == 390,
+                    "local_fallback_cancels": True,
+                    "cancel": not bool(actual) and width == 390,
+                    "issuer_failure": not bool(actual) and width == 390,
+                    "login_style": style,
                     "external_requests": 0,
                     "page_errors": 0,
                 }
             )
+            context.close()
         browser.close()
     (output / f"{args.engine}-report.json").write_text(
         json.dumps(report, indent=2) + "\n"

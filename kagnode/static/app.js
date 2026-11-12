@@ -320,8 +320,13 @@ function nav() {
     : "Personal mailbox";
 }
 let providerAttempt = "";
+let providerReady = false;
 window.KagNodeLoginHost = {
-  state: () => ({ enabled: state.provider_enabled === true && !state.user }),
+  state: () => ({
+    issuer: state.provider_issuer,
+    ready: providerReady,
+    enabled: state.provider_enabled === true && !state.user,
+  }),
   request: (action, data) =>
     api("/kagnode-login", { method: "POST", body: { action, ...data } }),
   complete: (result) => {
@@ -338,7 +343,8 @@ window.KagNodeLoginHost = {
       : "KagNode identity confirmed. Sign in to an existing mailbox to link it. A mail administrator must create new mailboxes.";
     note.hidden = false;
     $("#provider-local-login").hidden = false;
-    (result.linked ? form.elements.password : form.elements.email).focus();
+    if (result.linked) window.KagNodeLogin?.advance(form, { focus: true });
+    else form.elements.email.focus();
   },
 };
 function renderLoginAccess(session) {
@@ -405,7 +411,7 @@ async function boot() {
         $("#login-form").elements.email.readOnly = false;
         $("#provider-mailbox-note").hidden = true;
         $("#provider-local-login").hidden = true;
-        window.KagNodeLogin?.reset($("#provider-login"));
+        if (providerReady) window.KagNodeLogin?.reset($("#provider-login"));
       }
       state.messages = [];
       state.current = null;
@@ -425,6 +431,8 @@ async function boot() {
       if (s.login_allowed) $("#login-form [name=email]").focus();
       else $("#login-access").focus();
     }
+    providerReady = true;
+    window.KagNodeLogin?.refresh();
   } catch (e) {
     $("#loading").replaceChildren(
       blank("Could not open KagNode Mail.", e.message),

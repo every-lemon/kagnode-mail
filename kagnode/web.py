@@ -5,7 +5,7 @@ import hmac
 import imaplib
 import io
 import ipaddress
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 import json
 import os
 import secrets
@@ -23,6 +23,7 @@ from flask import (
     g,
     jsonify,
     render_template,
+    redirect,
     request,
     send_file,
     session,
@@ -343,6 +344,7 @@ def create_app(overrides=None):
             hostname=app.config["MAIL_HOSTNAME"],
             login_url=login_url,
             login_allowed=bool(login_allowed),
+            provider_issuer=profile_links.issuer,
             provider_enabled=bool(
                 login_allowed and not app.config["DEMO"] and account_signins.enabled()
             ),
@@ -890,8 +892,11 @@ def create_app(overrides=None):
                     return jsonify(
                         error="Too many sign-in requests. Try again later."
                     ), 429
-                result = account_signins.start(
-                    browser, "https://" + app.config["MAIL_HOSTNAME"]
+                result = account_signins.start_browser(
+                    browser,
+                    request.host_url.rstrip("/")
+                    if app.config["TESTING"]
+                    else "https://" + app.config["MAIL_HOSTNAME"],
                 )
             elif action == "cancel":
                 result = account_signins.cancel(browser, attempt)
@@ -922,9 +927,44 @@ def create_app(overrides=None):
                     )
             else:
                 return jsonify(error="Invalid sign-in action."), 400
-            return jsonify(result)
+            response = jsonify(result)
+            if action == "start":
+                response.set_cookie(
+                    cookie_prefix + "kagnode_return",
+                    browser,
+                    max_age=600,
+                    secure=app.config["SESSION_COOKIE_SECURE"],
+                    httponly=True,
+                    samesite="Lax",
+                    path="/",
+                )
+            return response
         except AccountLinkError as error:
             return jsonify(error=str(error)), error.status
+
+    @app.get("/auth/kagnode/callback")
+    def kagnode_callback():
+        query = {"kagnode_error": "invalid"}
+        try:
+            if (
+                not local_login_allowed()
+                or app.config["DEMO"]
+                or any(len(request.args.getlist(key)) != 1 for key in request.args)
+            ):
+                raise AccountLinkError("Invalid callback.", 403)
+            attempt = account_signins.callback(
+                request.cookies.get(cookie_prefix + "kagnode_return", ""),
+                request.args.get("state", ""),
+                request.args.get("iss", ""),
+                request.args.get("code", ""),
+                request.args.get("error", ""),
+            )
+            query = {"kagnode_attempt": attempt}
+        except AccountLinkError:
+            pass
+        response = redirect("/?" + urlencode(query), code=303)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.route("/api/kagnode-account", methods=["GET", "POST"])
     @login_required
