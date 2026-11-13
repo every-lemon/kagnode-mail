@@ -2142,6 +2142,7 @@ $("#login-form").addEventListener("submit", (ev) => {
       providerAttempt = "";
       $("#provider-mailbox-note").hidden = true;
       $("#provider-local-login").hidden = true;
+      f.dispatchEvent(new CustomEvent("kagnode:form-saved", { bubbles: true }));
       await boot();
     })
     .catch((e) => ($("#login-error").textContent = e.message))

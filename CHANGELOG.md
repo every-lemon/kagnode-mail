@@ -1,3 +1,9 @@
+# 5.0.2
+
+- Updated the reviewed Core interface and account-scoped update notice integration where supported.
+- Added project-owned setup plan, review, apply, health and recovery interfaces; existing native installers retain their own boundaries.
+- Fixed browser authentication for the Core settings API without changing the separate server-to-server Mail token API.
+
 # 5.0.1
 
 - Return Login with KagNode to the initiating application through a browser-bound S256 PKCE callback.
