@@ -79,6 +79,11 @@ class ProfileLinks:
             CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,created REAL NOT NULL);""")
 
         with self.db() as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS core_notice_receipts(subject TEXT PRIMARY KEY,notice_id TEXT NOT NULL,updated REAL NOT NULL)"
+            )
+
+        with self.db() as db:
             stored = db.execute(
                 "SELECT issuer FROM issuer_identity WHERE id=1"
             ).fetchone()
@@ -106,6 +111,35 @@ class ProfileLinks:
                 yield db
         finally:
             db.close()
+
+    @staticmethod
+    def _notice_identity(subject, notice_id):
+        if not isinstance(subject, str) or not 1 <= len(subject) <= 256:
+            raise ValueError("A local account identifier is required")
+        if not isinstance(notice_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9._:-]{1,160}", notice_id
+        ):
+            raise ValueError("Invalid update notice identifier")
+
+    def notice_is_dismissed(self, subject, notice_id):
+        self._notice_identity(subject, notice_id)
+        with self.db() as db:
+            row = db.execute(
+                "SELECT notice_id FROM core_notice_receipts WHERE subject=?", (subject,)
+            ).fetchone()
+        return bool(row and row[0] == notice_id)
+
+    def notice_dismiss(self, subject, notice_id):
+        self._notice_identity(subject, notice_id)
+        with self.db() as db:
+            db.execute(
+                "INSERT INTO core_notice_receipts(subject,notice_id,updated) VALUES(?,?,?) ON CONFLICT(subject) DO UPDATE SET notice_id=excluded.notice_id,updated=excluded.updated",
+                (subject, notice_id, self.clock()),
+            )
+            # One current receipt per account; cap stale/deleted account receipts too.
+            db.execute(
+                "DELETE FROM core_notice_receipts WHERE subject IN (SELECT subject FROM core_notice_receipts ORDER BY updated DESC,subject LIMIT -1 OFFSET 10000)"
+            )
 
     def request(self, method, endpoint, data=None, token=None):
         headers = {

@@ -1,0 +1,107 @@
+{
+  "platforms": [
+    [
+      "ubuntu",
+      "24.04"
+    ]
+  ],
+  "architectures": [
+    "x86_64",
+    "aarch64"
+  ],
+  "required_paths": [
+    "data"
+  ],
+  "dependencies": [
+    "systemctl",
+    "python3"
+  ],
+  "warnings": [
+    "Only the listed application or native setup is performed. Existing data is never reset.",
+    "Setup requires local administrator review; source/data package installation alone does not start services.",
+    "Use a fresh dedicated Ubuntu 24.04 host. Configure the domain A record before setup; DNS, port forwarding, PTR and remote delivery are not silently configured."
+  ],
+  "kind": "native",
+  "user": "vmail",
+  "fields": [
+    {
+      "key": "domain",
+      "label": "Email domain",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": ""
+    },
+    {
+      "key": "hostname",
+      "label": "Mail hostname",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": ""
+    },
+    {
+      "key": "ipv4",
+      "label": "Public IPv4",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": ""
+    },
+    {
+      "key": "ipv6",
+      "label": "Public IPv6",
+      "type": "string",
+      "required": false,
+      "secret": false,
+      "default": ""
+    },
+    {
+      "key": "admin",
+      "label": "First administrator mailbox",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": ""
+    },
+    {
+      "key": "password_file",
+      "label": "Administrator password file",
+      "type": "string",
+      "required": true,
+      "secret": true,
+      "default": ""
+    }
+  ],
+  "paths": {
+    "code": "/opt/kagnode/mail",
+    "configuration": "/etc/kagnode/mail/config.json",
+    "data": "/var/lib/kagnode/mail",
+    "mailboxes": "/var/vmail",
+    "unit": "/etc/systemd/system/kagnode-web.service"
+  },
+  "units": [
+    "postfix",
+    "dovecot",
+    "opendkim",
+    "kagnode-guard",
+    "kagnode-web",
+    "nginx",
+    "fail2ban"
+  ],
+  "health_path": "/api/session",
+  "health_key": "csrf",
+  "port": 8000,
+  "health_scope": "Mail service processes and local web response; DNS, remote delivery and external TLS require separate checks.",
+  "entrypoint": [
+    "/bin/bash",
+    "install.sh"
+  ],
+  "changes": [
+    "Run the existing fresh-host Mail installer with reviewed domain/IP/mailbox fields",
+    "Install and configure the existing native Mail services and certificate workflow",
+    "Keep DNS/router actions visible; verify service processes and local web readiness"
+  ],
+  "project": "mail",
+  "version": "5.0.2"
+}

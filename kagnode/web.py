@@ -203,7 +203,9 @@ def create_app(overrides=None):
     @app.before_request
     def authenticate():
         g.user, g.auth = None, None
-        if request.path == "/api/v1" or request.path.startswith("/api/v1/"):
+        if (
+            request.path == "/api/v1" or request.path.startswith("/api/v1/")
+        ) and not request.path.startswith("/api/v1/kagnode-core/"):
             return None  # The versioned API authenticates bearer tokens independently.
         token = request.cookies.get(auth_cookie, "")
         if token:
@@ -283,7 +285,9 @@ def create_app(overrides=None):
 
     @app.errorhandler(Exception)
     def error(exc):
-        if request.path == "/api/v1" or request.path.startswith("/api/v1/"):
+        if (
+            request.path == "/api/v1" or request.path.startswith("/api/v1/")
+        ) and not request.path.startswith("/api/v1/kagnode-core/"):
             from .api import api_error
 
             return api_error(exc)
@@ -1016,6 +1020,9 @@ def create_app(overrides=None):
         login_required,
         lambda: bool(g.user and g.user["admin"]),
         admin_required,
+        notice_subject=lambda: str(g.user["id"]),
+        notice_is_dismissed=profile_links.notice_is_dismissed,
+        notice_dismiss=profile_links.notice_dismiss,
     )
 
     from .api import register_api
