@@ -8,7 +8,7 @@ Self-hosted mail, webmail and a server-only application mail API.
 
 ## Release status
 
-Product source: **5.0.2**. Stable source/data release: **5.0.2**.
+Product source: **5.0.3**. Stable source/data release: **5.0.3**.
 
 KagNode 5 uses the same locally served Core login frame and action icons across applications. Existing local sign-in, explicit KagNode connection, profile-sync policy, local roles and storage formats are preserved. Mailbox credentials and native mailbox provisioning remain separate. This update changes the web interface and shared account integration.
 
