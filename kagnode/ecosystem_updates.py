@@ -28,7 +28,7 @@ def manage_update(project, action, data=None):
         if action == "state":
             return {
                 "enabled": False,
-                "message": "Enable this application's update panel with KagNode CLI on the server.",
+                "message": "Enable this application's update panel with KagNode Daemon on the server.",
             }
         raise UpdateError("The local update manager is not running.")
     body = {"action": action}
