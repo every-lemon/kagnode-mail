@@ -6,6 +6,28 @@
 
 Self-hosted mail, webmail and a server-only application mail API.
 
+### What it looks like
+
+Screenshots come from the read-only preview with fictional people and messages. No real mailbox is shown.
+
+| Inbox and reader                                                                               | Compose                                                                        |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| ![The inbox with a folder list, message list and the open message](docs/screenshots/inbox.png) | ![Writing a new message](docs/screenshots/compose.png)                         |
+| ![The administration overview](docs/screenshots/overview.png)                                  | ![Sender permissions for people and domains](docs/screenshots/permissions.png) |
+| ![Scoped API tokens for applications](docs/screenshots/tokens.png)                             | ![The inbox in dark mode](docs/screenshots/dark.png)                           |
+
+On a phone the folders move into a drawer:
+
+![The inbox at phone width](docs/screenshots/mobile.png)
+
+### How it works
+
+1. **People use the web interface.** Mailboxes, folders, search, attachments and drafts work like ordinary webmail. The everyday mail view has no extra global sidebar; the account and administration pages use it.
+2. **Your server delivers the mail.** KagNode Mail integrates with Postfix, Dovecot and OpenDKIM, but only after an administrator sets them up explicitly. Mailbox credentials and native mailbox provisioning stay separate from web sign-in.
+3. **Administrators manage the rest.** People and access, domains and DNS, sender permissions, quotas, audit records and backups live in the administration pages.
+4. **Applications send mail through the API.** A server-only API accepts scoped, revocable tokens, so an application can send without a person's password.
+5. **Sign-in stays yours.** Local sign-in always works. Optional KagNode Account linking copies only your display name and photo after you approve it, and the local administrator can turn it off.
+
 ## Release status
 
 Product source: **5.0.3**. Stable source/data release: **5.0.3**.
@@ -36,15 +58,15 @@ Ubuntu Server 24.04, Python 3.12 and a dedicated mail host. Internet delivery ad
 
 Download from [GitHub Releases](https://github.com/every-lemon/kagnode-mail/releases). Verify `SHA256SUMS` before extracting or installing a package.
 
-| Payload | Formats | Support |
-| --- | --- | --- |
-| Complete source / artwork | `.tar.xz`, `.tar.gz`, `.zip` | Named top-level directory; manual setup |
-| Source/data | `.deb` | Source only; does not provision a service |
-| Source/data | `.rpm` | Rocky Linux 10 source package; no native service qualification |
+| Payload                   | Formats                      | Support                                                        |
+| ------------------------- | ---------------------------- | -------------------------------------------------------------- |
+| Complete source / artwork | `.tar.xz`, `.tar.gz`, `.zip` | Named top-level directory; manual setup                        |
+| Source/data               | `.deb`                       | Source only; does not provision a service                      |
+| Source/data               | `.rpm`                       | Rocky Linux 10 source package; no native service qualification |
 
 For native Ubuntu mail provisioning, use the reviewed install.sh workflow in the operations guide.
 
-Source packages install under `/usr/share/kagnode/`; they do not replace an existing application, migrate data, start services or configure networking.  See [package details](docs/PACKAGING.md).
+Source packages install under `/usr/share/kagnode/`; they do not replace an existing application, migrate data, start services or configure networking. See [package details](docs/PACKAGING.md).
 
 ## Usage
 
