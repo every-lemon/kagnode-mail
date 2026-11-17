@@ -2,13 +2,11 @@
 
 # KagNode Mail
 
-## Overview
-
 Self-hosted mail, webmail and a server-only application mail API.
 
-### What it looks like
+## Overview
 
-Screenshots come from the read-only preview with fictional people and messages. No real mailbox is shown.
+Screenshots come from the read-only preview with fictional people and messages.
 
 | Inbox and reader                                                                               | Compose                                                                        |
 | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -16,39 +14,27 @@ Screenshots come from the read-only preview with fictional people and messages. 
 | ![The administration overview](docs/screenshots/overview.png)                                  | ![Sender permissions for people and domains](docs/screenshots/permissions.png) |
 | ![Scoped API tokens for applications](docs/screenshots/tokens.png)                             | ![The inbox in dark mode](docs/screenshots/dark.png)                           |
 
-On a phone the folders move into a drawer:
-
 ![The inbox at phone width](docs/screenshots/mobile.png)
 
-### How it works
-
-1. **People use the web interface.** Mailboxes, folders, search, attachments and drafts work like ordinary webmail. The everyday mail view has no extra global sidebar; the account and administration pages use it.
-2. **Your server delivers the mail.** KagNode Mail integrates with Postfix, Dovecot and OpenDKIM, but only after an administrator sets them up explicitly. Mailbox credentials and native mailbox provisioning stay separate from web sign-in.
-3. **Administrators manage the rest.** People and access, domains and DNS, sender permissions, quotas, audit records and backups live in the administration pages.
-4. **Applications send mail through the API.** A server-only API accepts scoped, revocable tokens, so an application can send without a person's password.
-5. **Sign-in stays yours.** Local sign-in always works. Optional KagNode Account linking copies only your display name and photo after you approve it, and the local administrator can turn it off.
+| Step                                   | Detail                                                                                                                      |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| People use the web interface           | Mailboxes, folders, search, attachments and drafts work like ordinary webmail.                                              |
+| Your server delivers the mail          | KagNode Mail integrates with Postfix, Dovecot and OpenDKIM, but only after an administrator sets them up explicitly.        |
+| Administrators manage the rest         | People and access, domains and DNS, sender permissions, quotas, audit records and backups live in the administration pages. |
+| Applications send mail through the API | A server-only API accepts scoped, revocable tokens, so an application can send without a person's password.                 |
+| Sign-in stays yours                    | Local sign-in always works.                                                                                                 |
 
 ## Release status
 
 Product source: **5.0.3**. Stable source/data release: **5.0.3**.
 
-KagNode 5 uses the same locally served Core login frame and action icons across applications. Existing local sign-in, explicit KagNode connection, profile-sync policy, local roles and storage formats are preserved. Mailbox credentials and native mailbox provisioning remain separate. This update changes the web interface and shared account integration.
-
-Earlier packaging prereleases remain available. The 5.0 stable release is limited to the verified source/data and web-interface scope; native and hardware evidence remains separate. See [verification](docs/VERIFICATION.md) and [changelog](CHANGELOG.md).
-
-Browser sign-in now returns from KagNode to this application in the same tab, using a one-use authorization code with S256 PKCE. Local email/username forms reveal the password step after identity entry; vault setup, MFA and key-only controls preserve their existing requirements. See [account sign-in](docs/ACCOUNT-SYNC.md).
+KagNode 5 uses the same locally served Core login frame and action icons across applications.
 
 ## Features
-
-Shared Core controls and locally authorized update summaries are integrated where the application supports automatic UI updates. Embedded or account-free products do not invent automatic update events.
-
-- Shared local sign-in and explicit Login with KagNode; local access and security requirements stay available. See [account sign-in](docs/ACCOUNT-SYNC.md).
 
 - Mailboxes, folders, search, attachments, drafts and sender permissions.
 - Postfix, Dovecot and OpenDKIM integration with explicit administrator setup.
 - Scoped API tokens, quotas, audit records and backup tools.
-
-Optional KagNode Account linking syncs your display name and photo after explicit approval. Your local application administrator can disable it. Local sign-in and permissions stay independent.
 
 ## Requirements
 
@@ -56,17 +42,13 @@ Ubuntu Server 24.04, Python 3.12 and a dedicated mail host. Internet delivery ad
 
 ## Installation and downloads
 
-Download from [GitHub Releases](https://github.com/every-lemon/kagnode-mail/releases). Verify `SHA256SUMS` before extracting or installing a package.
+Take releases only from [GitHub Releases](https://github.com/every-lemon/kagnode-mail/releases) and verify `SHA256SUMS`.
 
 | Payload                   | Formats                      | Support                                                        |
 | ------------------------- | ---------------------------- | -------------------------------------------------------------- |
 | Complete source / artwork | `.tar.xz`, `.tar.gz`, `.zip` | Named top-level directory; manual setup                        |
 | Source/data               | `.deb`                       | Source only; does not provision a service                      |
 | Source/data               | `.rpm`                       | Rocky Linux 10 source package; no native service qualification |
-
-For native Ubuntu mail provisioning, use the reviewed install.sh workflow in the operations guide.
-
-Source packages install under `/usr/share/kagnode/`; they do not replace an existing application, migrate data, start services or configure networking. See [package details](docs/PACKAGING.md).
 
 ## Usage
 
@@ -82,11 +64,9 @@ See [operations and existing setup instructions](docs/OPERATIONS.md) for the ful
 
 Shared presentation uses [KagNode Core](docs/CORE.md), with a pinned local fallback and reviewed server adapters. Compatible stable UI patches have a separate local-administrator policy.
 
-Review PATHS.md and the migration guide before changing an existing installation. Maildir, accounts, keys and configuration belong outside the source tree.
-
 ## Security
 
-Use HTTPS and least-privilege accounts for hosted services. Keep secrets and user data out of Git. Source/data packages support inspection and manual setup; native service and hardware claims remain limited to recorded verification. See [security guidance](docs/SECURITY.md).
+Use HTTPS and least-privilege accounts for hosted services. Keep secrets and user data out of Git.
 
 ## Development and testing
 
@@ -97,20 +77,18 @@ python3 scripts/format_source.py --check
 python3 scripts/release.py --output dist/packages
 ```
 
-Install the formatting dependencies from `requirements-format.txt`. Package building additionally needs `dpkg-deb`, `rpmbuild`, XZ support and, for CLI binaries, Go. Read [the repository map](docs/STRUCTURE.md) before editing generated files.
-
 ## Documentation
 
-- [Reviewed local setup](docs/INSTALLER.md)
-
-- [Ecosystem installation and updates](docs/ECOSYSTEM.md)
-
-- [Repository structure](docs/STRUCTURE.md)
-- [Operations](docs/OPERATIONS.md)
-- [Packages and release process](docs/PACKAGING.md)
-- [Verification and limits](docs/VERIFICATION.md)
-- [KagNode Account linking](docs/ACCOUNT-SYNC.md)
-- [Changelog](CHANGELOG.md)
+|                                    |                                              |
+| ---------------------------------- | -------------------------------------------- |
+| Reviewed local setup               | [docs/INSTALLER.md](docs/INSTALLER.md)       |
+| Ecosystem installation and updates | [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md)       |
+| Repository structure               | [docs/STRUCTURE.md](docs/STRUCTURE.md)       |
+| Operations                         | [docs/OPERATIONS.md](docs/OPERATIONS.md)     |
+| Packages and release process       | [docs/PACKAGING.md](docs/PACKAGING.md)       |
+| Verification and limits            | [docs/VERIFICATION.md](docs/VERIFICATION.md) |
+| KagNode Account linking            | [docs/ACCOUNT-SYNC.md](docs/ACCOUNT-SYNC.md) |
+| Changelog                          | [CHANGELOG.md](CHANGELOG.md)                 |
 
 ## Licensing
 
